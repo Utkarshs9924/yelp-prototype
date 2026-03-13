@@ -34,6 +34,30 @@ class FavoriteCreate(BaseModel):
     user_id: int
     restaurant_id: int
 
+class PreferencesCreate(BaseModel):
+    user_id: int
+    cuisine_preferences: str
+    price_range: str
+    dietary_restrictions: str
+    ambiance_preferences: str
+    preferred_location: str
+
+class PreferencesUpdate(BaseModel):
+    cuisine_preferences: str
+    price_range: str
+    dietary_restrictions: str
+    ambiance_preferences: str
+    preferred_location: str
+
+class UserProfileUpdate(BaseModel):
+    name: str
+    phone: str
+    about_me: str
+    city: str
+    country: str
+    languages: str
+    gender: str
+
 
 @app.get("/")
 def root():
@@ -125,6 +149,38 @@ def get_restaurants():
 
     cursor.execute("SELECT * FROM restaurants")
 
+    restaurants = cursor.fetchall()
+
+    conn.close()
+
+    return restaurants
+
+@app.get("/restaurants/search")
+def search_restaurants(
+    name: str = None,
+    cuisine: str = None,
+    city: str = None
+):
+
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    query = "SELECT * FROM restaurants WHERE 1=1"
+    params = []
+
+    if name:
+        query += " AND name LIKE %s"
+        params.append(f"%{name}%")
+
+    if cuisine:
+        query += " AND cuisine_type LIKE %s"
+        params.append(f"%{cuisine}%")
+
+    if city:
+        query += " AND city LIKE %s"
+        params.append(f"%{city}%")
+
+    cursor.execute(query, tuple(params))
     restaurants = cursor.fetchall()
 
     conn.close()
@@ -281,3 +337,123 @@ def remove_favorite(favorite_id: int):
     conn.close()
 
     return {"message": "Favorite removed"}
+
+@app.post("/preferences")
+def create_preferences(preferences: PreferencesCreate):
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    query = """
+    INSERT INTO preferences
+    (user_id, cuisine_preferences, price_range, dietary_restrictions, ambiance_preferences, preferred_location)
+    VALUES (%s,%s,%s,%s,%s,%s)
+    """
+
+    cursor.execute(query, (
+        preferences.user_id,
+        preferences.cuisine_preferences,
+        preferences.price_range,
+        preferences.dietary_restrictions,
+        preferences.ambiance_preferences,
+        preferences.preferred_location
+    ))
+
+    conn.commit()
+    conn.close()
+
+    return {"message": "Preferences saved successfully"}
+
+@app.get("/preferences/{user_id}")
+def get_preferences(user_id: int):
+
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    query = "SELECT * FROM preferences WHERE user_id = %s"
+    cursor.execute(query, (user_id,))
+
+    preferences = cursor.fetchone()
+
+    conn.close()
+
+    return preferences
+
+@app.put("/preferences/{user_id}")
+def update_preferences(user_id: int, preferences: PreferencesUpdate):
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    query = """
+    UPDATE preferences
+    SET cuisine_preferences=%s,
+        price_range=%s,
+        dietary_restrictions=%s,
+        ambiance_preferences=%s,
+        preferred_location=%s
+    WHERE user_id=%s
+    """
+
+    cursor.execute(query, (
+        preferences.cuisine_preferences,
+        preferences.price_range,
+        preferences.dietary_restrictions,
+        preferences.ambiance_preferences,
+        preferences.preferred_location,
+        user_id
+    ))
+
+    conn.commit()
+    conn.close()
+
+    return {"message": "Preferences updated successfully"}
+
+@app.get("/users/{user_id}")
+def get_user(user_id: int):
+
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    query = "SELECT * FROM users WHERE id = %s"
+    cursor.execute(query, (user_id,))
+
+    user = cursor.fetchone()
+
+    conn.close()
+
+    return user
+
+@app.put("/users/{user_id}")
+def update_user(user_id: int, user: UserProfileUpdate):
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    query = """
+    UPDATE users
+    SET name=%s,
+        phone=%s,
+        about_me=%s,
+        city=%s,
+        country=%s,
+        languages=%s,
+        gender=%s
+    WHERE id=%s
+    """
+
+    cursor.execute(query, (
+        user.name,
+        user.phone,
+        user.about_me,
+        user.city,
+        user.country,
+        user.languages,
+        user.gender,
+        user_id
+    ))
+
+    conn.commit()
+    conn.close()
+
+    return {"message": "Profile updated successfully"}
