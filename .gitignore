@@ -1,0 +1,6 @@
+# Ignore local environment files and dependencies so sensitive data (like DB passwords) 
+# and large folders are not pushed to GitHub
+venv/
+__pycache__/
+node_modules/
+.env
