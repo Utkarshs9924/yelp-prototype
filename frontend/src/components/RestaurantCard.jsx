@@ -51,9 +51,9 @@ export default function RestaurantCard({ restaurant, variant = 'grid', compact }
             {city && ` • ${city}`}
           </p>
           <div className={`flex items-center gap-2 ${listCompact ? 'mt-0.5' : 'mt-1'}`}>
-            <StarRating rating={average_rating} size="sm" />
+            <StarRating rating={Number(average_rating) || 0} size="sm" />
             <span className={`text-gray-500 ${listCompact ? 'text-xs' : 'text-sm'}`}>
-              {average_rating.toFixed(1)} ({review_count} reviews)
+              {(Number(average_rating) || 0).toFixed(1)} ({review_count} reviews)
             </span>
             {priceDisplay && (
               <span className={`text-gray-600 ${listCompact ? 'text-xs' : 'text-sm'}`}>
@@ -88,9 +88,9 @@ export default function RestaurantCard({ restaurant, variant = 'grid', compact }
           {city && ` • ${city}`}
         </p>
         <div className="flex items-center gap-2 mt-2">
-          <StarRating rating={average_rating} size="sm" />
+          <StarRating rating={Number(average_rating) || 0} size="sm" />
           <span className="text-sm text-gray-500">
-            {average_rating.toFixed(1)} ({review_count})
+            {(Number(average_rating) || 0).toFixed(1)} ({review_count})
           </span>
           {priceDisplay && (
             <span className="text-sm text-gray-600 ml-auto">{priceDisplay}</span>
