@@ -53,9 +53,19 @@ def get_restaurants():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
 
-    cursor.execute("SELECT * FROM restaurants")
+    query = """
+    SELECT r.*, GROUP_CONCAT(rp.photo_url) as photos_str
+    FROM restaurants r
+    LEFT JOIN restaurant_photos rp ON r.id = rp.restaurant_id
+    GROUP BY r.id
+    """
+    cursor.execute(query)
 
     restaurants = cursor.fetchall()
+    
+    for r in restaurants:
+        r['photos'] = r['photos_str'].split(',') if r.get('photos_str') else []
+        r.pop('photos_str', None)
 
     conn.close()
 
@@ -72,23 +82,34 @@ def search_restaurants(
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
 
-    query = "SELECT * FROM restaurants WHERE 1=1"
+    query = """
+    SELECT r.*, GROUP_CONCAT(rp.photo_url) as photos_str
+    FROM restaurants r
+    LEFT JOIN restaurant_photos rp ON r.id = rp.restaurant_id
+    WHERE 1=1
+    """
     params = []
 
     if name:
-        query += " AND name LIKE %s"
+        query += " AND r.name LIKE %s"
         params.append(f"%{name}%")
 
     if cuisine:
-        query += " AND cuisine_type LIKE %s"
+        query += " AND r.cuisine_type LIKE %s"
         params.append(f"%{cuisine}%")
 
     if city:
-        query += " AND city LIKE %s"
+        query += " AND r.city LIKE %s"
         params.append(f"%{city}%")
+
+    query += " GROUP BY r.id"
 
     cursor.execute(query, tuple(params))
     restaurants = cursor.fetchall()
+    
+    for r in restaurants:
+        r['photos'] = r['photos_str'].split(',') if r.get('photos_str') else []
+        r.pop('photos_str', None)
 
     conn.close()
 
@@ -101,10 +122,20 @@ def get_restaurant(restaurant_id: int):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
 
-    query = "SELECT * FROM restaurants WHERE id = %s"
+    query = """
+    SELECT r.*, GROUP_CONCAT(rp.photo_url) as photos_str
+    FROM restaurants r
+    LEFT JOIN restaurant_photos rp ON r.id = rp.restaurant_id
+    WHERE r.id = %s
+    GROUP BY r.id
+    """
     cursor.execute(query, (restaurant_id,))
 
     restaurant = cursor.fetchone()
+    
+    if restaurant:
+        restaurant['photos'] = restaurant['photos_str'].split(',') if restaurant.get('photos_str') else []
+        restaurant.pop('photos_str', None)
 
     conn.close()
 
