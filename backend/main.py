@@ -7,6 +7,7 @@ from routes import restaurants
 from routes import reviews
 from routes import favorites
 from routes import preferences
+from routes import chat
 
 app = FastAPI()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -16,6 +17,7 @@ app.include_router(restaurants.router)
 app.include_router(reviews.router)
 app.include_router(favorites.router)
 app.include_router(preferences.router)
+app.include_router(chat.router)
 
 
 @app.get("/")
@@ -30,4 +32,4 @@ def test_db():
     cursor.execute("SHOW DATABASES;")
     databases = cursor.fetchall()
     conn.close()
-    return {"databases": databases}
+    return {"databases": databases}# trigger reload
