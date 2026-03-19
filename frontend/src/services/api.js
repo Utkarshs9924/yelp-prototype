@@ -38,4 +38,18 @@ export const preferencesAPI = {
   update: (userId, data) => api.put(`/preferences/${userId}`, data),
 };
 
+export const chatAPI = {
+  send: (data) => api.post('/chat', data),
+};
+
+export const historyAPI = {
+  get: (userId) => api.get(`/history/${userId}`),
+};
+
+export const ownerAPI = {
+  getStats: (ownerId) => api.get(`/owner/${ownerId}/stats`),
+  getRestaurants: (ownerId) => api.get(`/owner/${ownerId}/restaurants`),
+  getReviews: (ownerId) => api.get(`/owner/${ownerId}/reviews`),
+};
+
 export default api;
