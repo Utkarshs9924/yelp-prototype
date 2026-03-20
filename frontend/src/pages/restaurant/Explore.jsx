@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { FaSearch, FaFilter } from 'react-icons/fa';
-import { restaurantAPI } from '../../services/api';
+import { restaurantAPI, chatAPI } from '../../services/api';
 import RestaurantCard from '../../components/RestaurantCard';
 import toast from 'react-hot-toast';
 
@@ -37,6 +37,10 @@ export default function Explore() {
   const [cuisine, setCuisine] = useState('All Cuisines');
   const [priceRange, setPriceRange] = useState('');
   const [cityZip, setCityZip] = useState('');
+  const [searchMode, setSearchMode] = useState('standard');
+  const [aiSearch, setAiSearch] = useState('');
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiResponse, setAiResponse] = useState('');
   const [showFilters, setShowFilters] = useState(false);
 
   const fetchRestaurants = useCallback(async () => {
@@ -74,6 +78,26 @@ export default function Explore() {
     fetchRestaurants();
   };
 
+  const handleAiSearchSubmit = async (e) => {
+    e.preventDefault();
+    if (!aiSearch.trim()) return;
+    
+    setAiLoading(true);
+    setAiResponse('');
+    try {
+      const { data } = await chatAPI.send({
+        message: aiSearch,
+        conversation_history: []
+      });
+      setAiResponse(data.response);
+      setRestaurants(data.restaurants || []);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to get AI response');
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Hero Section */}
@@ -86,37 +110,86 @@ export default function Explore() {
             Search by name, cuisine, keywords, city or zip code
           </p>
 
-          <form onSubmit={handleSearchSubmit} className="max-w-2xl mx-auto">
-            <div className="flex flex-col sm:flex-row gap-3">
-              <div className="flex-1 relative">
-                <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                <input
-                  type="text"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Restaurant name, cuisine, keywords..."
-                  className="w-full pl-11 pr-4 py-3 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white/50"
-                />
+          <div className="flex justify-center gap-4 mb-6">
+            <button 
+              type="button"
+              onClick={() => { setSearchMode('standard'); fetchRestaurants(); }} 
+              className={`px-5 py-2 rounded-full font-semibold transition-all ${searchMode === 'standard' ? 'bg-white text-red-600 shadow-md' : 'bg-red-700/50 text-white hover:bg-red-600'}`}
+            >
+              Standard Search
+            </button>
+            <button 
+              type="button"
+              onClick={() => setSearchMode('ai')} 
+              className={`px-5 py-2 rounded-full font-semibold transition-all ${searchMode === 'ai' ? 'bg-white text-red-600 shadow-md' : 'bg-red-700/50 text-white hover:bg-red-600'}`}
+            >
+              ✨ Ask AI Assistant
+            </button>
+          </div>
+
+          {searchMode === 'standard' ? (
+            <form onSubmit={handleSearchSubmit} className="max-w-2xl mx-auto">
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="flex-1 relative">
+                  <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                  <input
+                    type="text"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Restaurant name, cuisine, keywords..."
+                    className="w-full pl-11 pr-4 py-3 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white/50"
+                  />
+                </div>
+                <div className="flex-1 relative">
+                  <input
+                    type="text"
+                    value={cityZip}
+                    onChange={(e) => setCityZip(e.target.value)}
+                    placeholder="City or zip code"
+                    className="w-full px-4 py-3 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white/50"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="px-6 py-3 bg-white text-red-600 font-semibold rounded-lg hover:bg-red-50 transition-colors shadow-md"
+                >
+                  Search
+                </button>
               </div>
-              <div className="flex-1 relative">
-                <input
-                  type="text"
-                  value={cityZip}
-                  onChange={(e) => setCityZip(e.target.value)}
-                  placeholder="City or zip code"
-                  className="w-full px-4 py-3 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white/50"
-                />
-              </div>
+            </form>
+          ) : (
+            <form onSubmit={handleAiSearchSubmit} className="max-w-2xl mx-auto relative animate-fade-in">
+              <input
+                type="text"
+                value={aiSearch}
+                onChange={(e) => setAiSearch(e.target.value)}
+                placeholder="Ex: 'I'm vegan and want something casual' or 'Romantic italian spot'"
+                className="w-full px-6 py-4 rounded-xl text-gray-900 placeholder-gray-500 text-lg shadow-xl focus:outline-none focus:ring-4 focus:ring-red-300"
+                disabled={aiLoading}
+              />
               <button
                 type="submit"
-                className="px-6 py-3 bg-white text-red-600 font-semibold rounded-lg hover:bg-red-50 transition-colors"
+                disabled={aiLoading || !aiSearch.trim()}
+                className="absolute right-2 top-1/2 -translate-y-1/2 px-6 py-2 bg-gradient-to-r from-red-600 to-red-500 text-white rounded-lg hover:from-red-700 hover:to-red-600 disabled:opacity-70 transition-all font-medium shadow-md flex items-center gap-2"
               >
-                Search
+                {aiLoading ? 'Thinking...' : 'Ask AI'}
               </button>
-            </div>
-          </form>
+            </form>
+          )}
         </div>
       </div>
+      
+      {/* AI Response Alert */}
+      {searchMode === 'ai' && aiResponse && (
+        <div className="max-w-6xl mx-auto px-4 mt-6 animate-fade-in">
+          <div className="bg-blue-50 border border-blue-200 p-5 rounded-xl shadow-sm">
+            <div className="flex items-start gap-4">
+              <span className="text-2xl mt-0.5">✨</span>
+              <p className="text-blue-900 whitespace-pre-wrap leading-relaxed">{aiResponse}</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Filters & Content */}
       <div className="max-w-6xl mx-auto px-4 py-6">
