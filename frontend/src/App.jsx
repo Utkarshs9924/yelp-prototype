@@ -15,6 +15,7 @@ import History from './pages/user/History';
 import OwnerDashboard from './pages/owner/OwnerDashboard';
 import ManageRestaurant from './pages/owner/ManageRestaurant';
 import OwnerReviews from './pages/owner/OwnerReviews';
+import AdminDashboard from './pages/admin/AdminDashboard';
 
 export default function App() {
   return (
@@ -33,9 +34,10 @@ export default function App() {
           <Route path="/preferences" element={<ProtectedRoute><Preferences /></ProtectedRoute>} />
           <Route path="/favourites" element={<ProtectedRoute><Favourites /></ProtectedRoute>} />
           <Route path="/history" element={<ProtectedRoute><History /></ProtectedRoute>} />
-          <Route path="/owner/dashboard" element={<ProtectedRoute><OwnerDashboard /></ProtectedRoute>} />
-          <Route path="/owner/restaurants" element={<ProtectedRoute><ManageRestaurant /></ProtectedRoute>} />
-          <Route path="/owner/reviews" element={<ProtectedRoute><OwnerReviews /></ProtectedRoute>} />
+          <Route path="/owner/dashboard" element={<ProtectedRoute allowedRoles={['owner', 'admin']}><OwnerDashboard /></ProtectedRoute>} />
+          <Route path="/owner/restaurants" element={<ProtectedRoute allowedRoles={['owner', 'admin']}><ManageRestaurant /></ProtectedRoute>} />
+          <Route path="/owner/reviews" element={<ProtectedRoute allowedRoles={['owner', 'admin']}><OwnerReviews /></ProtectedRoute>} />
+          <Route path="/admin/dashboard" element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboard /></ProtectedRoute>} />
         </Routes>
       </main>
       <ChatBot />

@@ -1,10 +1,9 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from typing import Optional
 from database import get_db_connection
-from passlib.context import CryptContext
-
-router = APIRouter()
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+import bcrypt
+from auth import create_access_token, get_current_user
 
 router = APIRouter(tags=["Users"])
 
@@ -13,6 +12,7 @@ class SignupRequest(BaseModel):
     name: str
     email: str
     password: str
+    role: Optional[str] = "user"
 
 
 class LoginRequest(BaseModel):
@@ -36,10 +36,12 @@ def signup(user: SignupRequest):
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    hashed_password = pwd_context.hash(user.password)
+    hashed_password = bcrypt.hashpw(user.password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+    role = user.role if user.role in ["user", "owner"] else "user"
+    is_approved = True if role == "user" else False
 
-    query = "INSERT INTO users (name, email, password) VALUES (%s, %s, %s)"
-    cursor.execute(query, (user.name, user.email, hashed_password))
+    query = "INSERT INTO users (name, email, password_hash, role, is_approved) VALUES (%s, %s, %s, %s, %s)"
+    cursor.execute(query, (user.name, user.email, hashed_password, role, is_approved))
 
     conn.commit()
     conn.close()
@@ -62,10 +64,26 @@ def login(user: LoginRequest):
     if not db_user:
         return {"message": "User not found"}
 
-    if not pwd_context.verify(user.password, db_user["password"]):
+    if not bcrypt.checkpw(user.password.encode('utf-8'), db_user["password_hash"].encode('utf-8')):
         return {"message": "Invalid password"}
 
-    return {"message": "Login successful"}
+    token = create_access_token({
+        "sub": str(db_user["id"]), 
+        "role": db_user["role"], 
+        "is_approved": db_user["is_approved"]
+    })
+    
+    return {
+        "message": "Login successful",
+        "token": token,
+        "user": {
+            "id": db_user["id"],
+            "name": db_user["name"],
+            "email": db_user["email"],
+            "role": db_user["role"],
+            "is_approved": db_user["is_approved"]
+        }
+    }
 
 
 @router.get("/users/{user_id}")

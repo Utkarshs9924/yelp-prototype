@@ -21,6 +21,7 @@ export default function Navbar() {
   const [profileOpen, setProfileOpen] = useState(false);
 
   const isOwner = user?.role === 'owner';
+  const isAdmin = user?.role === 'admin';
 
   const handleLogout = () => {
     logout();
@@ -59,6 +60,13 @@ export default function Navbar() {
               <NavLink to="/owner/dashboard" className={navLinkClass}>
                 <span className="flex items-center gap-2">
                   <FaChartLine className="text-sm" /> Owner Dashboard
+                </span>
+              </NavLink>
+            )}
+            {isAdmin && (
+              <NavLink to="/admin/dashboard" className={navLinkClass}>
+                <span className="flex items-center gap-2">
+                  <FaChartLine className="text-sm" /> Admin Panel
                 </span>
               </NavLink>
             )}
@@ -186,6 +194,17 @@ export default function Navbar() {
                 >
                   <span className="flex items-center gap-2">
                     <FaChartLine /> Owner Dashboard
+                  </span>
+                </NavLink>
+              )}
+              {isAdmin && (
+                <NavLink
+                  to="/admin/dashboard"
+                  onClick={() => setMobileOpen(false)}
+                  className={navLinkClass}
+                >
+                  <span className="flex items-center gap-2">
+                    <FaChartLine /> Admin Panel
                   </span>
                 </NavLink>
               )}

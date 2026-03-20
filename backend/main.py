@@ -1,6 +1,5 @@
 from fastapi import FastAPI
 from database import get_db_connection
-from passlib.context import CryptContext
 
 from routes import users
 from routes import restaurants
@@ -8,9 +7,10 @@ from routes import reviews
 from routes import favorites
 from routes import preferences
 from routes import chat
+from routes import admin
+from routes import owner
 
 app = FastAPI()
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 app.include_router(users.router)
 app.include_router(restaurants.router)
@@ -18,7 +18,8 @@ app.include_router(reviews.router)
 app.include_router(favorites.router)
 app.include_router(preferences.router)
 app.include_router(chat.router)
-
+app.include_router(admin.router)
+app.include_router(owner.router)
 
 @app.get("/")
 def root():
