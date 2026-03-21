@@ -159,6 +159,43 @@ export default function RestaurantDetail() {
   }
 
   const photos = restaurant.photos ?? [];
+  
+  const CUISINE_IMAGE_MAP = {
+    'Pizza': '1513104890138-7c749659a591',
+    'Mexican': '1565299524944-86dc24727f71',
+    'Italian': '1498579150354-977475b7e2b3',
+    'Japanese': '1553621042-f6e147245754',
+    'Sushi': '1579871494447-9811cf80d66c',
+    'Chinese': '1540189549336-e6e99c3679fe',
+    'Burger': '1568901346375-23c9450c58cd',
+    'Thai': '1559314809-0d155014e29e',
+    'Indian': '1585937421606-0d5b1ada5004',
+    'Coffee': '1497935586351-b67a49e012bf',
+    'Bakery': '1509440159596-0249088772ff',
+    'Seafood': '1615141982317-08471384e4f1',
+    'Vegan': '1512621776951-a57141f2eefd'
+  };
+
+  const GENERIC_IMAGES = [
+    '1414235077428-97116960ac16',
+    '1504674900247-0877df9cc836',
+    '1476224203463-9889505c10ad'
+  ];
+
+  const getFallbackImage = () => {
+    if (!restaurant.cuisine_type) return `https://images.unsplash.com/photo-${GENERIC_IMAGES[0]}?auto=format&fit=crop&w=1200&q=80`;
+    const cType = restaurant.cuisine_type.toLowerCase();
+    
+    for (const [key, photoId] of Object.entries(CUISINE_IMAGE_MAP)) {
+      if (cType.includes(key.toLowerCase())) {
+        return `https://images.unsplash.com/photo-${photoId}?auto=format&fit=crop&w=1200&q=80`;
+      }
+    }
+    
+    const idx = (restaurant.name?.length || 0) % GENERIC_IMAGES.length;
+    return `https://images.unsplash.com/photo-${GENERIC_IMAGES[idx]}?auto=format&fit=crop&w=1200&q=80`;
+  };
+
   const priceDisplay = restaurant.pricing_tier
     ? '$'.repeat(Number(restaurant.pricing_tier) || 1)
     : null;
@@ -194,7 +231,7 @@ export default function RestaurantDetail() {
           ) : (
             <div className="aspect-[21/9] bg-gray-200 flex items-center justify-center">
               <img
-                src="https://placehold.co/800x300/e5e7eb/9ca3af?text=No+Photos"
+                src={getFallbackImage()}
                 alt={restaurant.name}
                 className="w-full h-full object-cover"
               />
