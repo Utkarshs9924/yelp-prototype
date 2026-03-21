@@ -2,6 +2,14 @@ import axios from 'axios';
 
 const api = axios.create({ baseURL: '/api' });
 
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
 export const authAPI = {
   signup: (data) => api.post('/signup', data),
   login: (data) => api.post('/login', data),
@@ -33,9 +41,9 @@ export const favouriteAPI = {
 };
 
 export const preferencesAPI = {
-  get: (userId) => api.get(`/preferences/${userId}`),
+  get: () => api.get(`/preferences`),
   create: (data) => api.post('/preferences', data),
-  update: (userId, data) => api.put(`/preferences/${userId}`, data),
+  update: (data) => api.put(`/preferences`, data),
 };
 
 export const chatAPI = {
@@ -47,9 +55,20 @@ export const historyAPI = {
 };
 
 export const ownerAPI = {
+  getDashboard: () => api.get('/owner/dashboard'),
   getStats: (ownerId) => api.get(`/owner/${ownerId}/stats`),
-  getRestaurants: (ownerId) => api.get(`/owner/${ownerId}/restaurants`),
-  getReviews: (ownerId) => api.get(`/owner/${ownerId}/reviews`),
+  getRestaurants: () => api.get(`/owner/restaurants`),
+  getReviews: (restaurantId) => api.get(`/owner/restaurants/${restaurantId}/reviews`),
+  createRestaurant: (data) => api.post('/owner/restaurants', data)
+};
+
+export const adminAPI = {
+  getPendingOwners: () => api.get('/admin/owners/pending'),
+  approveOwner: (id) => api.put(`/admin/owners/${id}/approve`),
+  getPendingRestaurants: () => api.get('/admin/restaurants/pending'),
+  updateRestaurantStatus: (id, status) => api.put(`/admin/restaurants/${id}/status`, { status }),
+  assignOwner: (id, ownerId) => api.put(`/admin/restaurants/${id}/assign`, { owner_id: ownerId }),
+  deassignOwner: (id) => api.put(`/admin/restaurants/${id}/deassign`)
 };
 
 export default api;
