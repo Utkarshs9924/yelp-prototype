@@ -14,10 +14,7 @@ class ChatMessage(BaseModel):
 @router.post("/chat")
 def chat_endpoint(data: ChatMessage):
     try:
-        from langchain_community.chat_models import ChatOllama
-        from langchain.schema import HumanMessage, SystemMessage
-        
-        llm = ChatOllama(model="llama3.2:latest", temperature=0)
+        import openai
         
         system_msg = """
         You are a Yelp-style restaurant search assistant.
@@ -29,8 +26,25 @@ def chat_endpoint(data: ChatMessage):
         Do not output any markdown formatting, just the raw JSON object.
         """
         
-        filter_response = llm.invoke([SystemMessage(content=system_msg), HumanMessage(content=data.message)])
-        raw_json = filter_response.content.strip().strip('`').strip('json').strip()
+        from openai import AzureOpenAI
+        client = AzureOpenAI(
+            api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+            api_version="2024-02-15-preview",
+            azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT")
+        )
+        
+        # In Azure, the model parameter must match your deployment name.
+        # We assume you name your deployment "gpt-4o-mini"
+        filter_response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system_msg},
+                {"role": "user", "content": data.message}
+            ],
+            temperature=0
+        )
+        
+        raw_json = filter_response.choices[0].message.content.strip().strip('`').strip('json').strip()
         try:
             filters = json.loads(raw_json)
         except:
