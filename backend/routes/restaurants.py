@@ -8,42 +8,57 @@ router = APIRouter(tags=["Restaurants"])
 
 class RestaurantCreate(BaseModel):
     name: str
-    cuisine_type: str
-    address: str
-    city: str
-    description: str
-    contact_info: str
-    price_tier: str
-    user_id: int
+    cuisine_type: str = None
+    description: str = None
+    address: str = None
+    city: str = None
+    state: str = None
+    zip_code: str = None
+    phone: str = None
+    email: str = None
+    website: str = None
+    hours_of_operation: str = None
+    pricing_tier: str = None
+    amenities: str = None
+    ambiance: str = None
 
 
 @router.post("/restaurants")
-def create_restaurant(restaurant: RestaurantCreate):
+def create_restaurant(restaurant: RestaurantCreate, user: dict = Depends(get_current_user)):
 
     conn = get_db_connection()
     cursor = conn.cursor()
 
     query = """
     INSERT INTO restaurants
-    (name, cuisine_type, address, city, description, contact_info, price_tier, created_by)
-    VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
+    (name, cuisine_type, description, address, city, state, zip_code, phone, email, website, hours_of_operation, pricing_tier, amenities, ambiance, created_by)
+    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
     """
 
     cursor.execute(query, (
         restaurant.name,
         restaurant.cuisine_type,
+        restaurant.description,
         restaurant.address,
         restaurant.city,
-        restaurant.description,
-        restaurant.contact_info,
-        restaurant.price_tier,
-        restaurant.user_id
+        restaurant.state,
+        restaurant.zip_code,
+        restaurant.phone,
+        restaurant.email,
+        restaurant.website,
+        restaurant.hours_of_operation,
+        restaurant.pricing_tier,
+        restaurant.amenities,
+        restaurant.ambiance,
+        user['id']
     ))
 
+    new_id = cursor.lastrowid
     conn.commit()
     conn.close()
 
-    return {"message": "Restaurant created successfully"}
+    return {"message": "Restaurant created successfully", "id": new_id}
+
 
 
 @router.get("/restaurants")
