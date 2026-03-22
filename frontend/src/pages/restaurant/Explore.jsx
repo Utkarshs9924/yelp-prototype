@@ -179,93 +179,97 @@ export default function Explore() {
         </div>
       </div>
       
-      {/* AI Response Alert */}
-      {searchMode === 'ai' && aiResponse && (
-        <div className="max-w-6xl mx-auto px-4 mt-6 animate-fade-in">
-          <div className="bg-blue-50 border border-blue-200 p-5 rounded-xl shadow-sm">
-            <div className="flex items-start gap-4">
-              <span className="text-2xl mt-0.5">✨</span>
-              <p className="text-blue-900 whitespace-pre-wrap leading-relaxed">{aiResponse}</p>
+      {/* Demo Credentials Card */}
+      {searchMode === 'standard' && (
+        <div className="max-w-6xl mx-auto px-4 mt-8 animate-fade-in">
+          <div className="bg-yellow-50 border border-yellow-200 p-5 rounded-xl shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
+            <div>
+              <h3 className="text-lg font-bold text-yellow-900 flex items-center gap-2">
+                <span className="text-2xl">🔑</span> Demo Credentials
+              </h3>
+              <p className="text-sm text-yellow-800 mt-1">Use these accounts to test the different role-based views.</p>
+            </div>
+            <div className="flex gap-4 flex-wrap justify-end">
+              <div className="bg-white px-4 py-2 rounded-lg border border-yellow-100 shadow-sm text-sm whitespace-nowrap">
+                <span className="font-semibold text-gray-700">User:</span> user@example.com / password123
+              </div>
+              <div className="bg-white px-4 py-2 rounded-lg border border-yellow-100 shadow-sm text-sm whitespace-nowrap">
+                <span className="font-semibold text-gray-700">Owner:</span> owner@example.com / password123
+              </div>
+              <div className="bg-white px-4 py-2 rounded-lg border border-yellow-100 shadow-sm text-sm whitespace-nowrap">
+                <span className="font-semibold text-gray-700">Admin:</span> admin@example.com / password123
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Demo Credentials Card */}
-      <div className="max-w-6xl mx-auto px-4 mt-8 animate-fade-in">
-        <div className="bg-yellow-50 border border-yellow-200 p-5 rounded-xl shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
-          <div>
-            <h3 className="text-lg font-bold text-yellow-900 flex items-center gap-2">
-              <span className="text-2xl">🔑</span> Demo Credentials
-            </h3>
-            <p className="text-sm text-yellow-800 mt-1">Use these accounts to test the different role-based views.</p>
-          </div>
-          <div className="flex gap-4 flex-wrap justify-end">
-            <div className="bg-white px-4 py-2 rounded-lg border border-yellow-100 shadow-sm text-sm whitespace-nowrap">
-              <span className="font-semibold text-gray-700">User:</span> user@example.com / password123
-            </div>
-            <div className="bg-white px-4 py-2 rounded-lg border border-yellow-100 shadow-sm text-sm whitespace-nowrap">
-              <span className="font-semibold text-gray-700">Owner:</span> owner@example.com / password123
-            </div>
-            <div className="bg-white px-4 py-2 rounded-lg border border-yellow-100 shadow-sm text-sm whitespace-nowrap">
-              <span className="font-semibold text-gray-700">Admin:</span> admin@example.com / password123
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* Filters & Content */}
       <div className="max-w-6xl mx-auto px-4 py-6">
         {/* Filter Bar */}
-        <div className="flex flex-col sm:flex-row gap-4 mb-6">
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg hover:border-red-300 hover:bg-red-50 transition-colors sm:hidden"
-          >
-            <FaFilter size={16} />
-            Filters
-          </button>
+        {searchMode === 'standard' && (
+          <div className="flex flex-col sm:flex-row gap-4 mb-6">
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg hover:border-red-300 hover:bg-red-50 transition-colors sm:hidden"
+            >
+              <FaFilter size={16} />
+              Filters
+            </button>
 
-          <div
-            className={`flex flex-col sm:flex-row gap-4 ${showFilters ? 'flex' : 'hidden sm:flex'}`}
-          >
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-wrap">
-              <div>
-                <label className="sr-only">Cuisine</label>
-                <select
-                  value={cuisine}
-                  onChange={(e) => setCuisine(e.target.value)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
-                >
-                  {CUISINE_OPTIONS.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-600">Price:</span>
-                <div className="flex gap-1">
-                  {PRICE_OPTIONS.filter((p) => p.value).map((p) => (
-                    <button
-                      key={p.value}
-                      type="button"
-                      onClick={() => setPriceRange(priceRange === p.value ? '' : p.value)}
-                      className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                        priceRange === p.value
-                          ? 'bg-red-600 text-white'
-                          : 'bg-white border border-gray-300 text-gray-700 hover:border-red-300 hover:bg-red-50'
-                      }`}
-                    >
-                      {p.label}
-                    </button>
-                  ))}
+            <div
+              className={`flex flex-col sm:flex-row gap-4 ${showFilters ? 'flex' : 'hidden sm:flex'}`}
+            >
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-wrap">
+                <div>
+                  <label className="sr-only">Cuisine</label>
+                  <select
+                    value={cuisine}
+                    onChange={(e) => setCuisine(e.target.value)}
+                    className="px-4 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                  >
+                    {CUISINE_OPTIONS.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-600">Price:</span>
+                  <div className="flex gap-1">
+                    {PRICE_OPTIONS.filter((p) => p.value).map((p) => (
+                      <button
+                        key={p.value}
+                        type="button"
+                        onClick={() => setPriceRange(priceRange === p.value ? '' : p.value)}
+                        className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                          priceRange === p.value
+                            ? 'bg-red-600 text-white'
+                            : 'bg-white border border-gray-300 text-gray-700 hover:border-red-300 hover:bg-red-50'
+                        }`}
+                      >
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
+        )}
+
+        {/* AI Response Alert */}
+        {searchMode === 'ai' && aiResponse && (
+          <div className="mb-6 animate-fade-in">
+            <div className="bg-blue-50 border border-blue-200 p-5 rounded-xl shadow-sm">
+              <div className="flex items-start gap-4">
+                <span className="text-2xl mt-0.5">✨</span>
+                <p className="text-blue-900 whitespace-pre-wrap leading-relaxed text-lg font-medium">{aiResponse}</p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Restaurant Grid */}
         {loading ? (

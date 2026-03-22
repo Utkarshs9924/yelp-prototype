@@ -29,7 +29,7 @@ def chat_endpoint(data: ChatMessage):
         from openai import AzureOpenAI
         client = AzureOpenAI(
             api_key=os.getenv("AZURE_OPENAI_API_KEY"),
-            api_version="2024-02-15-preview",
+            api_version="2025-01-01-preview",
             azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT")
         )
         
@@ -86,8 +86,11 @@ def chat_endpoint(data: ChatMessage):
                 "restaurants": []
             }
             
-        names = [f"**{r['name']}** ({r['cuisine_type']})" for r in results]
-        reply = f"Here are some great options matching your request: {', '.join(names)}. Let me know if you'd like more details on any of them!"
+        cuisine_text = filters.get('cuisine', '')
+        if cuisine_text:
+            reply = f"I found {len(results)} fantastic {cuisine_text} spots for you! Check out my top recommendations below:"
+        else:
+            reply = f"I found {len(results)} excellent options matching your request! Here are my top picks:"
         
         return {"response": reply, "restaurants": results}
         
