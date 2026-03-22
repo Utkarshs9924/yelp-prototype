@@ -56,6 +56,17 @@ export const historyAPI = {
   get: () => api.get('/history'),
 };
 
+export const photoAPI = {
+  upload: (restaurantId, file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post(`/restaurants/${restaurantId}/photos`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+  delete: (photoId) => api.delete(`/photos/${photoId}`),
+};
+
 export const ownerAPI = {
   getDashboard: () => api.get('/owner/dashboard'),
   getStats: (ownerId) => api.get(`/owner/${ownerId}/stats`),
