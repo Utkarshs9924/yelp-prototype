@@ -4,6 +4,152 @@ A full-stack Yelp-style restaurant discovery and review platform with an AI-powe
 
 **Course:** DATA 236 | **Lab 1** | Spring 2026
 
+**Repository:** `https://github.com/Utkarshs9924/yelp-prototype`
+
+---
+
+## Spin up from scratch (team — recommended)
+
+Follow these steps to run the project **without** installing MySQL locally. The app uses a **shared Azure MySQL** database and **Azure OpenAI** for the AI Assistant (Explore page).
+
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/Utkarshs9924/yelp-prototype.git
+cd yelp-prototype
+```
+
+> If you cloned into a folder named `yelp-teammate` or similar, `cd` into that folder instead — the important part is you are at the **project root** (where `requirements.txt`, `backend/`, and `frontend/` live).
+
+### 2. Configure environment variables
+
+Create **`backend/.env`** (copy from `backend/.env.example` if you like) with your team’s credentials:
+
+```env
+# backend/.env
+
+# Azure MySQL (shared hosted database — no local MySQL install needed)
+DB_HOST=yelp-db.mysql.database.azure.com
+DB_USER=yelpadmin
+DB_PASSWORD="<AZURE_MYSQL_PASSWORD>"
+DB_NAME=yelp_db
+
+# JWT secret (required for auth — use a long random string)
+JWT_SECRET="<generate_a_long_random_string>"
+
+# Azure OpenAI (AI Assistant on Explore page)
+AZURE_OPENAI_API_KEY="<AZURE_OPENAI_KEY>"
+AZURE_OPENAI_ENDPOINT="<AZURE_OPENAI_ENDPOINT>"
+```
+
+**Notes:**
+
+- Because the team uses a **hosted Azure MySQL** instance, teammates **do not** need to install MySQL, create `yelp_db` locally, or import SQL dumps — the backend connects to the remote database when these variables are set.
+- Ask your team lead for the actual values for `DB_PASSWORD`, `AZURE_OPENAI_API_KEY`, and `AZURE_OPENAI_ENDPOINT`.
+- Never commit `backend/.env` to git (it is listed in `.gitignore`).
+
+### 3. Set up and run the FastAPI backend
+
+From the **project root** (same folder as `requirements.txt`):
+
+**macOS / Linux:**
+
+```bash
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+cd backend
+uvicorn main:app --reload --port 8000
+```
+
+**Windows (PowerShell):**
+
+```powershell
+python -m venv venv
+.\venv\Scripts\activate
+pip install -r requirements.txt
+cd backend
+uvicorn main:app --reload --port 8000
+```
+
+- API: **http://localhost:8000**
+- Interactive docs: **http://localhost:8000/docs**
+
+Leave this terminal running.
+
+### 4. Set up and run the React frontend
+
+Open a **new** terminal tab/window (keep the backend running). From the **project root**:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+- App: **http://localhost:5173**
+
+The Vite dev server proxies `/api` to `http://localhost:8000`, so the browser talks only to the frontend URL; the frontend talks to your local backend, which reads/writes **Azure MySQL** and calls **Azure OpenAI** for the AI chat route.
+
+### 5. You’re done
+
+Open **http://localhost:5173** in your browser. You should see restaurants from the shared database and be able to use the **Ask AI Assistant** tab on Explore when Azure OpenAI env vars are set correctly.
+
+---
+
+## Local development (optional)
+
+Use this path if you want **MySQL on your machine** (e.g. Homebrew MySQL) and/or **Ollama** instead of Azure OpenAI. The chat route in this repo is configured for **Azure OpenAI**; for fully offline AI you’d need code that matches Ollama (or env-based switching).
+
+### Prerequisites
+
+- Python 3.9+
+- Node.js 18+
+- MySQL 8.0+ (local)
+- Optional: [Ollama](https://ollama.com/) if you adapt the chat backend for local LLMs
+
+### Database
+
+1. Start MySQL.
+2. Create schema and seed data, for example:
+
+```bash
+mysql -u root -p < mock_data.sql
+```
+
+(Adjust user/password and path as needed. See **Database Schema** below for manual DDL if you prefer.)
+
+### Backend (local DB)
+
+```bash
+cd backend
+python -m venv venv
+source venv/bin/activate   # or venv\Scripts\activate on Windows
+pip install -r ../requirements.txt
+cp .env.example .env
+# Edit .env: DB_HOST=localhost, DB_USER, DB_PASSWORD, DB_NAME=yelp_db, JWT_SECRET=...
+```
+
+Optional — seed many restaurants from OpenStreetMap:
+
+```bash
+python seed_live_data.py
+```
+
+Start the API:
+
+```bash
+uvicorn main:app --reload --port 8000
+```
+
+### Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
 ---
 
 ## Tech Stack
@@ -13,12 +159,12 @@ A full-stack Yelp-style restaurant discovery and review platform with an AI-powe
 |---|---|
 | Python 3.9+ | Runtime |
 | FastAPI | REST API framework |
-| MySQL | Relational database |
+| MySQL | Relational database (local or Azure) |
 | mysql-connector-python | Database driver |
 | Pydantic | Request/response validation |
 | bcrypt | Password hashing |
 | PyJWT | JWT token authentication |
-| LangChain + Ollama | Local AI chatbot (Llama 3.2) |
+| OpenAI SDK (Azure) | AI Assistant filter extraction (`/chat`) |
 
 ### Frontend
 | Technology | Purpose |
@@ -44,7 +190,7 @@ A full-stack Yelp-style restaurant discovery and review platform with an AI-powe
 - **Favourites** - save and manage favourite restaurants
 - **User history** - view past reviews and restaurants added
 - **Preferences** - set cuisine, price range, dietary needs, ambiance, and sort preferences for AI recommendations
-- **AI Assistant chatbot** - natural language restaurant search powered by Llama 3.2 (local, no API keys needed)
+- **AI Assistant** - natural language search on the Explore page (Azure OpenAI when configured in `.env`)
 
 ### Restaurant Owner Features
 - **Owner dashboard** - analytics with total restaurants, reviews, average rating, and per-restaurant rating distribution
@@ -57,12 +203,7 @@ A full-stack Yelp-style restaurant discovery and review platform with an AI-powe
 - **Assign/deassign** restaurant ownership
 
 ### AI Chatbot
-The Explore page features an integrated **"Ask AI Assistant"** tab powered by LangChain and a local instance of **Llama 3.2 via Ollama**. Users can type natural language queries like:
-- "I want cheap Mexican in SF"
-- "Fancy Italian places"
-- "Romantic dinner for two"
-
-The AI extracts search filters (cuisine, price, city) and queries the database to return matching restaurants.
+The Explore page includes **Standard Search** and **Ask AI Assistant**. With `AZURE_OPENAI_API_KEY` and `AZURE_OPENAI_ENDPOINT` set, the backend uses **Azure OpenAI** to turn natural language into JSON filters and runs SQL against the restaurant database.
 
 ---
 
@@ -70,12 +211,13 @@ The AI extracts search filters (cuisine, price, city) and queries the database t
 
 ```
 yelp-prototype/
+├── mock_data.sql              # Optional local DB seed
 ├── backend/
 │   ├── .env.example          # Environment variable template
 │   ├── database.py            # MySQL connection helper
 │   ├── auth.py                # JWT token creation & verification, RBAC
 │   ├── main.py                # FastAPI app entry point, router registration
-│   ├── seed_live_data.py      # Seeds 500+ real restaurants from OpenStreetMap
+│   ├── seed_live_data.py      # Seeds real restaurants from OpenStreetMap (optional)
 │   ├── test_fetch.py          # DB connectivity test script
 │   ├── models/
 │   │   └── schemas.py         # (Pydantic schemas placeholder)
@@ -83,9 +225,10 @@ yelp-prototype/
 │       ├── users.py           # Signup, login, profile CRUD, user reviews/restaurants
 │       ├── restaurants.py     # Restaurant CRUD, search, photo joins
 │       ├── reviews.py         # Review CRUD for restaurants
-│       ├── favorites.py       # Add/remove/list favourites
+│       ├── favorites.py       # Add/remove/list favourites (JWT)
 │       ├── preferences.py     # User preference CRUD (for AI assistant)
-│       ├── chat.py            # AI chatbot endpoint (LangChain + Ollama)
+│       ├── chat.py            # AI chatbot (Azure OpenAI + SQL)
+│       ├── history.py         # User activity timeline
 │       ├── owner.py           # Owner dashboard, stats, restaurant management
 │       └── admin.py           # Admin approval workflows
 ├── frontend/
@@ -133,175 +276,11 @@ yelp-prototype/
 
 ## Database Schema (MySQL)
 
-Run these SQL statements to create the required tables:
+For **local** setups, run SQL to create tables. The production/Azure database may already exist; align column names with `mock_data.sql` and the routes in `backend/routes/`.
 
-```sql
-CREATE DATABASE IF NOT EXISTS yelp_db;
-USE yelp_db;
+> **Note:** The app uses a table named **`favourites`** (British spelling) in MySQL.
 
-CREATE TABLE users (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
-    email VARCHAR(255) UNIQUE NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
-    role ENUM('user', 'owner', 'admin') DEFAULT 'user',
-    is_approved BOOLEAN DEFAULT TRUE,
-    phone VARCHAR(50),
-    about_me TEXT,
-    city VARCHAR(100),
-    state VARCHAR(50),
-    country VARCHAR(100),
-    languages VARCHAR(255),
-    gender VARCHAR(50),
-    profile_picture VARCHAR(500),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE restaurants (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
-    cuisine_type VARCHAR(100),
-    description TEXT,
-    address VARCHAR(255),
-    city VARCHAR(100),
-    state VARCHAR(50),
-    zip_code VARCHAR(20),
-    phone VARCHAR(50),
-    email VARCHAR(255),
-    website VARCHAR(500),
-    hours_of_operation TEXT,
-    pricing_tier VARCHAR(10),
-    amenities TEXT,
-    ambiance VARCHAR(100),
-    average_rating DECIMAL(3,2) DEFAULT 0,
-    review_count INT DEFAULT 0,
-    owner_id INT,
-    created_by INT,
-    created_by_user_id INT,
-    contact_info VARCHAR(255),
-    price_tier VARCHAR(10),
-    status ENUM('approved', 'pending', 'rejected') DEFAULT 'approved',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE SET NULL
-);
-
-CREATE TABLE reviews (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    user_id INT NOT NULL,
-    restaurant_id INT NOT NULL,
-    rating INT NOT NULL CHECK (rating BETWEEN 1 AND 5),
-    comment TEXT,
-    review_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE
-);
-
-CREATE TABLE favorites (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    user_id INT NOT NULL,
-    restaurant_id INT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE,
-    UNIQUE KEY unique_fav (user_id, restaurant_id)
-);
-
-CREATE TABLE preferences (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    user_id INT NOT NULL UNIQUE,
-    cuisine_preferences TEXT,
-    price_range VARCHAR(20),
-    preferred_locations TEXT,
-    search_radius INT DEFAULT 10,
-    dietary_needs TEXT,
-    ambiance_preferences TEXT,
-    sort_preference VARCHAR(50) DEFAULT 'Rating',
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-);
-
-CREATE TABLE restaurant_photos (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    restaurant_id INT NOT NULL,
-    photo_url VARCHAR(500) NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE
-);
-
--- Insert default admin account (password: password123)
--- Generate hash with: python -c "import bcrypt; print(bcrypt.hashpw(b'password123', bcrypt.gensalt()).decode())"
-INSERT INTO users (name, email, password_hash, role, is_approved) VALUES
-('Admin', 'admin@example.com', '$2b$12$LJ3m4ys3Lk0TSwHCfJEMwOBaYKVqSp0K1NqOsGVT0DJiS0lFMfSG2', 'admin', TRUE);
-```
-
----
-
-## Getting Started
-
-### Prerequisites
-- Python 3.9+
-- Node.js 18+
-- MySQL 8.0+
-- [Ollama](https://ollama.com/) (optional, for AI chatbot)
-
-### 1. Clone the Repository
-```bash
-git clone https://github.com/Utkarshs9924/yelp-prototype.git
-cd yelp-prototype
-```
-
-### 2. Set Up the Database
-1. Start your MySQL server
-2. Run the provided `mock_data.sql` script to create the `yelp_db` database, tables, and insert all mock data (including users, restaurants, and reviews):
-```bash
-mysql -u root -p < mock_data.sql
-```
-
-### 3. Set Up the Backend
-```bash
-cd backend
-
-# Create and activate virtual environment
-python -m venv venv
-source venv/bin/activate        # macOS/Linux
-# venv\Scripts\activate         # Windows
-
-# Install dependencies
-pip install -r ../requirements.txt
-
-# Configure environment
-cp .env.example .env
-# Edit .env with your MySQL credentials and JWT secret
-```
-
-### 4. Seed the Database (Optional)
-Populate the database with 500+ real restaurants from OpenStreetMap:
-```bash
-cd backend
-python seed_live_data.py
-```
-
-### 5. Start the Backend
-```bash
-cd backend
-uvicorn main:app --reload --port 8000
-```
-The API will be available at `http://localhost:8000`. Swagger docs at `http://localhost:8000/docs`.
-
-### 6. Set Up the Frontend
-```bash
-cd frontend
-npm install
-npm run dev
-```
-The frontend dev server runs at `http://localhost:5173` and proxies `/api` requests to the backend on port 8000.
-
-### 7. Set Up AI Chatbot (Optional)
-```bash
-# Install Ollama from https://ollama.com
-ollama pull llama3.2
-ollama serve
-```
+See `mock_data.sql` in the repo or use the DDL in previous revisions of this README if you need to bootstrap from empty.
 
 ---
 
@@ -329,7 +308,7 @@ ollama serve
 | GET | `/restaurants/{id}` | Get restaurant details |
 | POST | `/restaurants` | Create a restaurant |
 
-### Reviews
+### Reviews (JWT for create/update/delete)
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/restaurants/{id}/reviews` | Get reviews for a restaurant |
@@ -337,14 +316,20 @@ ollama serve
 | PUT | `/reviews/{id}` | Update a review |
 | DELETE | `/reviews/{id}` | Delete a review |
 
-### Favorites
+### Favourites (JWT required)
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/favorites/{user_id}` | Get user's favorites |
-| POST | `/favorites` | Add a favorite |
-| DELETE | `/favorites/{id}` | Remove a favorite |
+| GET | `/favorites` | List current user's favourites |
+| POST | `/favorites` | Body: `{ "restaurant_id": <id> }` |
+| GET | `/favorites/check/{restaurant_id}` | Whether restaurant is favourited |
+| DELETE | `/favorites/{restaurant_id}` | Remove favourite |
 
-### Preferences (JWT Required)
+### History (JWT required)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/history` | Timeline of reviews + restaurants added |
+
+### Preferences (JWT required)
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/preferences` | Get current user's preferences |
@@ -353,9 +338,9 @@ ollama serve
 ### AI Chatbot
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/chat` | Send natural language query |
+| POST | `/chat` | Natural language query (Azure OpenAI + DB) |
 
-### Owner (JWT + Owner/Admin Role)
+### Owner (JWT + Owner/Admin role)
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/owner/restaurants` | Get owner's restaurants |
@@ -363,7 +348,7 @@ ollama serve
 | POST | `/owner/restaurants` | Submit new restaurant |
 | GET | `/owner/restaurants/{id}/reviews` | Get reviews for owned restaurant |
 
-### Admin (JWT + Admin Role)
+### Admin (JWT + Admin role)
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/admin/owners/pending` | List pending owner approvals |
@@ -383,30 +368,26 @@ ollama serve
 | Owner | owner@example.com | password123 |
 | Admin | admin@example.com | password123 |
 
-> Note: You need to create these accounts via signup or insert them into the database manually.
+> These only work if corresponding users exist in the database you connect to (shared Azure or local seed).
 
 ---
 
 ## Team Contributions
 
-- **Backend** (Utkarsh): FastAPI REST API, MySQL database design, JWT authentication, RBAC middleware, AI chatbot integration with LangChain + Ollama, OpenStreetMap data seeder, owner/admin workflows
-- **Frontend** (Akash): React UI with Vite + TailwindCSS, all pages (Explore, Restaurant Detail, Auth, Profile, Preferences, Favourites, History, Owner Dashboard, Admin Panel), responsive design, API integration, AI chatbot widget, cuisine image fallback system
+- **Backend** (Utkarsh): FastAPI REST API, MySQL (including Azure), JWT authentication, RBAC middleware, AI chatbot (Azure OpenAI), OpenStreetMap seeder, owner/admin workflows
+- **Frontend** (Akash): React UI with Vite + TailwindCSS, pages (Explore, Restaurant Detail, Auth, Profile, Preferences, Favourites, History, Owner Dashboard, Admin Panel), responsive design, API integration, AI UI, cuisine image fallbacks
 
 ---
 
 ## Architecture
 
 ```
-┌─────────────────┐        ┌─────────────────────┐        ┌──────────┐
-│   React (Vite)  │──API──▶│  FastAPI (Python)    │──SQL──▶│  MySQL   │
-│   Port 5173     │        │  Port 8000           │        │  Port 3306│
-│                 │        │                      │        │          │
-│  - TailwindCSS  │        │  - JWT Auth          │        │  Tables: │
-│  - React Router │        │  - bcrypt            │        │  users   │
-│  - Axios        │        │  - Pydantic          │        │  restaurants│
-│  - React Icons  │        │  - LangChain+Ollama  │        │  reviews │
-│                 │        │  - RBAC Middleware    │        │  favorites│
-└─────────────────┘        └─────────────────────┘        │  preferences│
-                                                           │  restaurant_photos│
-                                                           └──────────┘
+┌─────────────────┐        ┌─────────────────────┐        ┌──────────────────┐
+│   React (Vite)  │──API──▶│  FastAPI (Python)    │──SQL──▶│  MySQL           │
+│   Port 5173     │        │  Port 8000           │        │  Local or Azure  │
+│                 │        │                      │        └──────────────────┘
+│  - TailwindCSS  │        │  - JWT Auth          │
+│  - React Router │        │  - bcrypt            │        ┌──────────────────┐
+│  - Axios        │        │  - Azure OpenAI      │──HTTP──▶│  Azure OpenAI    │
+└─────────────────┘        └─────────────────────┘        └──────────────────┘
 ```
