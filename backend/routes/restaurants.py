@@ -1,8 +1,7 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from database import get_db_connection
-
-router = APIRouter()
+from auth import get_current_user
 
 router = APIRouter(tags=["Restaurants"])
 
@@ -26,7 +25,7 @@ def create_restaurant(restaurant: RestaurantCreate):
 
     query = """
     INSERT INTO restaurants
-    (name, cuisine_type, address, city, description, contact_info, price_tier, created_by_user_id)
+    (name, cuisine_type, address, city, description, contact_info, price_tier, created_by)
     VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
     """
 
@@ -79,7 +78,9 @@ def get_restaurants():
 def search_restaurants(
     name: str = None,
     cuisine: str = None,
-    city: str = None
+    city: str = None,
+    pricing_tier: str = None,
+    zip_code: str = None
 ):
 
     conn = get_db_connection()
@@ -108,6 +109,14 @@ def search_restaurants(
         query += " AND r.city LIKE %s"
         params.append(f"%{city}%")
 
+    if pricing_tier:
+        query += " AND r.price_tier = %s"
+        params.append(pricing_tier)
+
+    if zip_code:
+        query += " AND r.address LIKE %s"
+        params.append(f"%{zip_code}%")
+
     query += " GROUP BY r.id"
 
     cursor.execute(query, tuple(params))
@@ -135,8 +144,11 @@ def get_restaurant(restaurant_id: int):
     FROM restaurants r
     WHERE r.id = %s
     """
-    cursor.execute(query, (restaurant_id,))
+    # Increment view count
+    cursor.execute("UPDATE restaurants SET views = views + 1 WHERE id = %s", (restaurant_id,))
+    conn.commit()
 
+    cursor.execute(query, (restaurant_id,))
     restaurant = cursor.fetchone()
     
     if restaurant:
@@ -167,3 +179,39 @@ def get_restaurant_menu(restaurant_id: int):
     conn.close()
 
     return items
+
+
+@router.post("/restaurants/{restaurant_id}/claim")
+def claim_restaurant(restaurant_id: int, user: dict = Depends(get_current_user)):
+    """
+    Allow an authenticated owner to claim a restaurant that has no owner assigned.
+    The claim will be set to 'pending' state for admin approval.
+    """
+    if user.get("role") != "owner":
+        raise HTTPException(status_code=403, detail="Only users with the 'owner' role can claim restaurants")
+
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    # 1. Check if restaurant exists and if it's already claimed
+    cursor.execute("SELECT owner_id, name FROM restaurants WHERE id = %s", (restaurant_id,))
+    res = cursor.fetchone()
+
+    if not res:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Restaurant not found")
+
+    if res['owner_id'] is not None:
+        conn.close()
+        raise HTTPException(status_code=400, detail="This restaurant is already claimed by another owner")
+
+    # 2. Update owner_id and set status to pending for admin approval
+    cursor.execute(
+        "UPDATE restaurants SET owner_id = %s, status = 'pending' WHERE id = %s",
+        (user['id'], restaurant_id)
+    )
+
+    conn.commit()
+    conn.close()
+
+    return {"message": f"Claim request for '{res['name']}' submitted successfully and is pending admin approval."}

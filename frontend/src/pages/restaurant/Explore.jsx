@@ -49,9 +49,8 @@ export default function Explore() {
       const params = {};
       if (search.trim()) {
         params.name = search.trim();
-        params.keywords = search.trim();
       }
-      if (cuisine && cuisine !== 'All Cuisines') params.cuisine_type = cuisine;
+      if (cuisine && cuisine !== 'All Cuisines') params.cuisine = cuisine;
       if (priceRange) params.pricing_tier = priceRange;
       if (cityZip.trim()) {
         const val = cityZip.trim();
@@ -59,7 +58,7 @@ export default function Explore() {
         else params.city = val;
       }
 
-      const { data } = await restaurantAPI.list(params);
+      const { data } = await restaurantAPI.search(params);
       setRestaurants(Array.isArray(data) ? data : data?.restaurants ?? data?.results ?? []);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to load restaurants');
