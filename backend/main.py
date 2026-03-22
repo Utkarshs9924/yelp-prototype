@@ -11,6 +11,7 @@ from routes import chat
 from routes import admin
 from routes import owner
 from routes import history
+from routes import photos
 
 app = FastAPI(title="Yelp Prototype API")
 
@@ -31,6 +32,7 @@ app.include_router(chat.router)
 app.include_router(admin.router)
 app.include_router(owner.router)
 app.include_router(history.router)
+app.include_router(photos.router)
 
 
 @app.get("/")

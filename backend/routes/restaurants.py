@@ -130,21 +130,21 @@ def get_restaurant(restaurant_id: int):
 
     query = """
     SELECT r.*,
-           GROUP_CONCAT(rp.photo_url) as photos_str,
            COALESCE((SELECT AVG(rv.rating) FROM reviews rv WHERE rv.restaurant_id = r.id), 0) as average_rating,
            COALESCE((SELECT COUNT(*) FROM reviews rv WHERE rv.restaurant_id = r.id), 0) as review_count
     FROM restaurants r
-    LEFT JOIN restaurant_photos rp ON r.id = rp.restaurant_id
     WHERE r.id = %s
-    GROUP BY r.id
     """
     cursor.execute(query, (restaurant_id,))
 
     restaurant = cursor.fetchone()
     
     if restaurant:
-        restaurant['photos'] = restaurant['photos_str'].split(',') if restaurant.get('photos_str') else []
-        restaurant.pop('photos_str', None)
+        # Fetch photos with IDs separately for proper delete support
+        cursor.execute("SELECT id, photo_url FROM restaurant_photos WHERE restaurant_id = %s", (restaurant_id,))
+        photo_rows = cursor.fetchall()
+        restaurant['photos'] = [p['photo_url'] for p in photo_rows]
+        restaurant['photo_ids'] = [p['id'] for p in photo_rows]
 
     conn.close()
 
