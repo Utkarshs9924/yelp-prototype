@@ -149,3 +149,21 @@ def get_restaurant(restaurant_id: int):
     conn.close()
 
     return restaurant
+
+
+@router.get("/restaurants/{restaurant_id}/menu")
+def get_restaurant_menu(restaurant_id: int):
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    cursor.execute("""
+        SELECT id, name, description, price
+        FROM menu_items
+        WHERE restaurant_id = %s
+        ORDER BY price ASC
+    """, (restaurant_id,))
+
+    items = cursor.fetchall()
+    conn.close()
+
+    return items

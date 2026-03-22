@@ -25,6 +25,7 @@ export const restaurantAPI = {
   search: (params) => api.get('/restaurants/search', { params }),
   get: (id) => api.get(`/restaurants/${id}`),
   create: (data) => api.post('/restaurants', data),
+  getMenu: (id) => api.get(`/restaurants/${id}/menu`),
 };
 
 export const reviewAPI = {

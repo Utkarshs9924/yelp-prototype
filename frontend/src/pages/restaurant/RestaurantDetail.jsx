@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { FaHeart, FaRegHeart, FaMapMarkerAlt, FaPhone, FaEnvelope, FaGlobe, FaEdit, FaTrash } from 'react-icons/fa';
+import { FaHeart, FaRegHeart, FaMapMarkerAlt, FaPhone, FaEnvelope, FaGlobe, FaEdit, FaTrash, FaUtensils } from 'react-icons/fa';
 import { restaurantAPI, reviewAPI, favouriteAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import StarRating from '../../components/StarRating';
@@ -12,6 +12,7 @@ export default function RestaurantDetail() {
   const { user, token } = useAuth();
   const [restaurant, setRestaurant] = useState(null);
   const [reviews, setReviews] = useState([]);
+  const [menuItems, setMenuItems] = useState([]);
   const [isFavourite, setIsFavourite] = useState(false);
   const [loading, setLoading] = useState(true);
   const [favLoading, setFavLoading] = useState(false);
@@ -20,6 +21,7 @@ export default function RestaurantDetail() {
   const [submitting, setSubmitting] = useState(false);
   const [editingReviewId, setEditingReviewId] = useState(null);
   const [editComment, setEditComment] = useState('');
+  const [activeTab, setActiveTab] = useState('menu');
 
   const userReview = reviews.find((r) => r.user_id === user?.id || r.user?.id === user?.id);
 
@@ -54,14 +56,24 @@ export default function RestaurantDetail() {
     }
   }, [restaurant_id, token]);
 
+  const fetchMenu = useCallback(async () => {
+    if (!restaurant_id) return;
+    try {
+      const { data } = await restaurantAPI.getMenu(restaurant_id);
+      setMenuItems(Array.isArray(data) ? data : []);
+    } catch {
+      setMenuItems([]);
+    }
+  }, [restaurant_id]);
+
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      await Promise.all([fetchRestaurant(), fetchReviews(), checkFavourite()]);
+      await Promise.all([fetchRestaurant(), fetchReviews(), checkFavourite(), fetchMenu()]);
       setLoading(false);
     };
     load();
-  }, [fetchRestaurant, fetchReviews, checkFavourite]);
+  }, [fetchRestaurant, fetchReviews, checkFavourite, fetchMenu]);
 
   const toggleFavourite = async () => {
     if (!token) {
@@ -355,132 +367,189 @@ export default function RestaurantDetail() {
           </div>
         </div>
 
-        {/* Reviews Section */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">Reviews</h2>
+        {/* Tabs */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="flex border-b border-gray-200">
+            <button
+              onClick={() => setActiveTab('menu')}
+              className={`flex-1 flex items-center justify-center gap-2 py-4 px-6 text-sm font-semibold transition-colors ${
+                activeTab === 'menu'
+                  ? 'text-red-600 border-b-2 border-red-600 bg-red-50/50'
+                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              <FaUtensils size={16} />
+              Menu ({menuItems.length} items)
+            </button>
+            <button
+              onClick={() => setActiveTab('reviews')}
+              className={`flex-1 flex items-center justify-center gap-2 py-4 px-6 text-sm font-semibold transition-colors ${
+                activeTab === 'reviews'
+                  ? 'text-red-600 border-b-2 border-red-600 bg-red-50/50'
+                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              ⭐ Reviews ({reviews.length})
+            </button>
+          </div>
 
-          {/* Write Review (if logged in, no existing review) */}
-          {user && !userReview && (
-            <form onSubmit={handleSubmitReview} className="mb-8 p-4 bg-gray-50 rounded-lg">
-              <h3 className="font-semibold text-gray-900 mb-3">Write a Review</h3>
-              <div className="flex items-center gap-2 mb-3">
-                <StarRating
-                  rating={reviewRating}
-                  onRate={setReviewRating}
-                  size="lg"
-                />
-                <span className="text-sm text-gray-600">Your rating</span>
-              </div>
-              <textarea
-                value={reviewComment}
-                onChange={(e) => setReviewComment(e.target.value)}
-                placeholder="Share your experience..."
-                rows={4}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 mb-3"
-              />
-              <button
-                type="submit"
-                disabled={submitting || reviewRating < 1}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {submitting ? 'Submitting...' : 'Submit Review'}
-              </button>
-            </form>
-          )}
-
-          {!user && (
-            <p className="mb-6 text-gray-500 text-sm">
-              <Link to="/login" className="text-red-600 hover:underline">Log in</Link> to write a review.
-            </p>
-          )}
-
-          {/* Reviews List */}
-          <div className="space-y-4">
-            {reviews.length === 0 ? (
-              <p className="text-gray-500">No reviews yet. Be the first to review!</p>
-            ) : (
-              reviews.map((review) => {
-                const isOwn = review.user_id === user?.id || review.user?.id === user?.id;
-                const isEditing = editingReviewId === review.id;
-
-                return (
-                  <div
-                    key={review.id}
-                    className="p-4 border border-gray-100 rounded-lg hover:bg-gray-50/50"
-                  >
-                    {isEditing ? (
-                      <form onSubmit={handleUpdateReview}>
-                        <textarea
-                          value={editComment}
-                          onChange={(e) => setEditComment(e.target.value)}
-                          rows={3}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg mb-2"
-                        />
-                        <div className="flex gap-2">
-                          <button
-                            type="submit"
-                            disabled={submitting}
-                            className="px-3 py-1 bg-red-600 text-white rounded text-sm"
-                          >
-                            Save
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingReviewId(null);
-                              setEditComment('');
-                            }}
-                            className="px-3 py-1 border border-gray-300 rounded text-sm"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </form>
-                    ) : (
-                      <>
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium text-gray-900">
-                              {review.user?.name ?? review.user_name ?? 'Anonymous'}
-                            </span>
-                            <StarRating rating={review.rating ?? 0} size="sm" />
-                          </div>
-                          {isOwn && (
-                            <div className="flex gap-2">
-                              <button
-                                onClick={() => {
-                                  setEditingReviewId(review.id);
-                                  setEditComment(review.comment ?? '');
-                                }}
-                                className="text-gray-500 hover:text-red-600 p-1"
-                                title="Edit"
-                              >
-                                <FaEdit size={14} />
-                              </button>
-                              <button
-                                onClick={() => handleDeleteReview(review.id)}
-                                disabled={submitting}
-                                className="text-gray-500 hover:text-red-600 p-1"
-                                title="Delete"
-                              >
-                                <FaTrash size={14} />
-                              </button>
-                            </div>
+          <div className="p-6">
+            {/* ─── Menu Tab ─── */}
+            {activeTab === 'menu' && (
+              <div>
+                {menuItems.length === 0 ? (
+                  <p className="text-gray-500 text-center py-8">No menu available for this restaurant.</p>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {menuItems.map((item) => (
+                      <div
+                        key={item.id}
+                        className="flex justify-between items-start p-4 rounded-lg border border-gray-100 hover:border-red-200 hover:bg-red-50/30 transition-colors"
+                      >
+                        <div className="flex-1 pr-4">
+                          <h4 className="font-semibold text-gray-900">{item.name}</h4>
+                          {item.description && (
+                            <p className="text-sm text-gray-500 mt-1 leading-relaxed">{item.description}</p>
                           )}
                         </div>
-                        {review.comment && (
-                          <p className="mt-1 text-gray-600 text-sm">{review.comment}</p>
-                        )}
-                        <p className="mt-1 text-xs text-gray-400">
-                          {review.created_at
-                            ? new Date(review.created_at).toLocaleDateString()
-                            : ''}
-                        </p>
-                      </>
-                    )}
+                        <span className="text-red-600 font-bold text-lg whitespace-nowrap">
+                          ${parseFloat(item.price).toFixed(2)}
+                        </span>
+                      </div>
+                    ))}
                   </div>
-                );
-              })
+                )}
+              </div>
+            )}
+
+            {/* ─── Reviews Tab ─── */}
+            {activeTab === 'reviews' && (
+              <div>
+                {/* Write Review */}
+                {user && !userReview && (
+                  <form onSubmit={handleSubmitReview} className="mb-8 p-4 bg-gray-50 rounded-lg">
+                    <h3 className="font-semibold text-gray-900 mb-3">Write a Review</h3>
+                    <div className="flex items-center gap-2 mb-3">
+                      <StarRating
+                        rating={reviewRating}
+                        onRate={setReviewRating}
+                        size="lg"
+                      />
+                      <span className="text-sm text-gray-600">Your rating</span>
+                    </div>
+                    <textarea
+                      value={reviewComment}
+                      onChange={(e) => setReviewComment(e.target.value)}
+                      placeholder="Share your experience..."
+                      rows={4}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 mb-3"
+                    />
+                    <button
+                      type="submit"
+                      disabled={submitting || reviewRating < 1}
+                      className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {submitting ? 'Submitting...' : 'Submit Review'}
+                    </button>
+                  </form>
+                )}
+
+                {!user && (
+                  <p className="mb-6 text-gray-500 text-sm">
+                    <Link to="/login" className="text-red-600 hover:underline">Log in</Link> to write a review.
+                  </p>
+                )}
+
+                {/* Reviews List */}
+                <div className="space-y-4">
+                  {reviews.length === 0 ? (
+                    <p className="text-gray-500">No reviews yet. Be the first to review!</p>
+                  ) : (
+                    reviews.map((review) => {
+                      const isOwn = review.user_id === user?.id || review.user?.id === user?.id;
+                      const isEditing = editingReviewId === review.id;
+
+                      return (
+                        <div
+                          key={review.id}
+                          className="p-4 border border-gray-100 rounded-lg hover:bg-gray-50/50"
+                        >
+                          {isEditing ? (
+                            <form onSubmit={handleUpdateReview}>
+                              <textarea
+                                value={editComment}
+                                onChange={(e) => setEditComment(e.target.value)}
+                                rows={3}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg mb-2"
+                              />
+                              <div className="flex gap-2">
+                                <button
+                                  type="submit"
+                                  disabled={submitting}
+                                  className="px-3 py-1 bg-red-600 text-white rounded text-sm"
+                                >
+                                  Save
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingReviewId(null);
+                                    setEditComment('');
+                                  }}
+                                  className="px-3 py-1 border border-gray-300 rounded text-sm"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </form>
+                          ) : (
+                            <>
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-medium text-gray-900">
+                                    {review.user?.name ?? review.user_name ?? 'Anonymous'}
+                                  </span>
+                                  <StarRating rating={review.rating ?? 0} size="sm" />
+                                </div>
+                                {isOwn && (
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={() => {
+                                        setEditingReviewId(review.id);
+                                        setEditComment(review.comment ?? '');
+                                      }}
+                                      className="text-gray-500 hover:text-red-600 p-1"
+                                      title="Edit"
+                                    >
+                                      <FaEdit size={14} />
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteReview(review.id)}
+                                      disabled={submitting}
+                                      className="text-gray-500 hover:text-red-600 p-1"
+                                      title="Delete"
+                                    >
+                                      <FaTrash size={14} />
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                              {review.comment && (
+                                <p className="mt-1 text-gray-600 text-sm">{review.comment}</p>
+                              )}
+                              <p className="mt-1 text-xs text-gray-400">
+                                {review.created_at
+                                  ? new Date(review.created_at).toLocaleDateString()
+                                  : ''}
+                              </p>
+                            </>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
             )}
           </div>
         </div>
