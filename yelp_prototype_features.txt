@@ -1,0 +1,762 @@
+================================================================================
+YELP PROTOTYPE — SOLUTION APPROACH & FEATURE DOCUMENTATION
+================================================================================
+Document type: Technical solution / handover guide
+Project: DATA 236 Lab 1 — Restaurant discovery, reviews, owners, admin, AI
+Last updated: March 2026
+
+--------------------------------------------------------------------------------
+PART A — EXECUTIVE SUMMARY & SOLUTION APPROACH
+--------------------------------------------------------------------------------
+
+WHAT THIS PROJECT IS
+--------------------
+This is a Yelp-style web application for discovering restaurants, reading and
+writing reviews, saving favourites, managing user profiles and dining
+preferences, and supporting restaurant owners and administrators with workflows
+for approvals and analytics. The stack is:
+
+  • Frontend: React 19 + Vite + Tailwind CSS, client-side routing (React Router),
+    Axios for HTTP, toast notifications, responsive navigation.
+
+  • Backend: FastAPI (Python) exposing REST endpoints, JWT bearer authentication,
+    role-based access for user / owner / admin, raw SQL via mysql-connector.
+
+  • Data: MySQL (local or Azure-hosted). Tables include users, restaurants,
+    reviews, favourites (British spelling in DB), preferences, restaurant_photos,
+    and optionally menu_items and embedding columns for semantic search.
+
+  • AI: Azure OpenAI — text-embedding-3-small for vector similarity on
+    restaurants (when embeddings exist), gpt-4o-mini for natural-language
+    summaries in the /chat flow. Optional utility scripts enrich descriptions
+    and generate menu data offline.
+
+SOLUTION APPROACH (HOW THE SYSTEM SOLVES THE LAB REQUIREMENTS)
+--------------------------------------------------------------
+1) Identity: Users register and log in; passwords are hashed with bcrypt; JWTs
+   carry user id, role, and owner approval flag for 7 days.
+
+2) Discovery: Explore page lists restaurants with optional filters; standard
+   mode loads from GET /restaurants (client may still send filter intent; server
+   list endpoint returns aggregated ratings). "Ask AI Assistant" and the
+   floating ChatBot call POST /chat for semantic retrieval + LLM reply.
+
+3) Detail: Restaurant detail shows photos (DB URLs or Azure uploads), menu tab
+   via GET /restaurants/{id}/menu, reviews tab, favourite heart, photo upload
+  /delete when configured.
+
+4) Social: Reviews are scoped to the JWT user on create; edit/delete enforce
+   ownership. Favourites use the favourites table and JWT-scoped routes.
+
+5) Personalization: Preferences stored as JSON-capable fields for cuisines,
+   price, locations, dietary, ambiance, sort — used conceptually for AI/UX.
+
+6) Owners: Dashboard aggregates owned restaurants and reviews; new listings go
+   through pending status until admin approves; owner-only routes guarded.
+
+7) Admins: Approve owners, approve/reject pending restaurants, assign or remove
+   owner_id on listings.
+
+8) Ops: Seed scripts, mock SQL, embedding generation, and enrichment pipelines
+   support demos without manual data entry.
+
+
+--------------------------------------------------------------------------------
+PART B — FEATURE DEEP DIVE (WHY IT EXISTS & WHAT IT DOES — PARAGRAPH EACH)
+--------------------------------------------------------------------------------
+
+B.1  USER SIGNUP
+Signup exists so new people can join the platform with a verified identity
+(email + password) and an assigned role. The backend hashes passwords with bcrypt
+so raw passwords never live in the database. Choosing "owner" puts the account
+into a pending-approval state (is_approved = false) so admins can vet business
+accounts before they gain full owner privileges; ordinary diners register as
+"user" and can use the app immediately. The UI collects confirmation and basic
+validation so bad data is caught before it hits the server.
+
+B.2  LOGIN & JWT SESSION
+Login exists to prove who the caller is on every subsequent request without
+sending the password again. After credential check, the API issues a JWT
+containing user id, role, and approval flag; the frontend stores it with the
+user profile in localStorage so refreshes keep you signed in. This pattern is
+standard for SPAs: stateless servers, stateful browser, and scalable horizontal
+API instances without server-side sessions.
+
+B.3  LOGOUT
+Logout exists to end the session on shared devices and to clear stale tokens
+after role changes. It wipes localStorage and React state so the next navigation
+treats the user as anonymous until they log in again.
+
+B.4  AXIOS + AUTHORIZATION HEADER
+The shared Axios client exists so every API call automatically includes
+`Authorization: Bearer <token>` when present. Without this single integration
+point, each page would duplicate header logic and protected endpoints would be
+easy to call incorrectly.
+
+B.5  PROTECTED ROUTES (FRONTEND RBAC)
+ProtectedRoute exists as the first line of defense in the UI: it blocks
+anonymous users from profile, favourites, history, and owner/admin areas, and
+it enforces role allow-lists so a normal user cannot open admin URLs even by
+typing them. This mirrors backend `require_role` but improves UX (redirect to
+login or home instead of raw 403 HTML).
+
+B.6  EXPLORE — STANDARD SEARCH & FILTERS
+The Explore page is the product's front door: it answers "what can I eat near
+me / matching my mood?" without signing in. Standard mode loads the restaurant
+catalog, shows loading skeletons for perceived performance, and exposes
+filters (cuisine, price tier, text, city/zip) so users can narrow the grid.
+It exists to satisfy traditional search expectations and to work even when AI
+or Azure services are unavailable.
+
+B.7  EXPLORE — "ASK AI ASSISTANT" MODE
+This mode exists for natural-language discovery: users describe intent ("romantic
+Italian under $$ in SF") instead of clicking filters. The frontend sends the
+text to POST /chat; the backend embeds the query, ranks restaurants by vector
+similarity, and asks GPT to phrase a short recommendation. The grid updates to
+the returned matches so the experience stays visual, not just a chat bubble.
+
+B.8  RESTAURANT CARDS
+RestaurantCard exists as a reusable visual unit: same component appears on
+Explore, in AI results, in favourites, and inside ChatBot replies. It handles
+missing images with cuisine-based Unsplash fallbacks so the UI never looks
+broken, and it deep-links to the detail route for drill-down.
+
+B.9  RESTAURANT DETAIL — OVERVIEW
+The detail page exists to convert interest into a decision: hours, location,
+price tier, description, amenities, and aggregated rating. It composes data from
+GET /restaurants/{id} plus parallel fetches for reviews, menu, and favourite
+state so one screen feels complete.
+
+B.10 RESTAURANT DETAIL — MENU TAB
+The menu tab exists to mimic real Yelp-style richness: structured dishes with
+prices come from GET /restaurants/{id}/menu (menu_items table). If the table is
+empty or missing, the UI degrades gracefully so the rest of the page still works.
+
+B.11 RESTAURANT DETAIL — REVIEWS TAB
+Reviews are the trust layer: prospective diners read peers' experiences. The page
+lists all reviews for the venue, shows stars and dates, and highlights the
+current user's own review for edit/delete. Creating a review requires login so
+ratings map to accountable accounts.
+
+B.12 FAVOURITES (HEART)
+Favourites exist so users can bookmark places without re-searching. The heart
+reflects GET /favorites/check/{id}; toggling calls add/remove with JWT identity
+so users cannot spoof another user's favourites. The dedicated Favourites page
+reuses RestaurantCard for a saved collection view.
+
+B.13 USER PROFILE
+Profile exists to keep account data accurate (name, contact, bio, location,
+languages, gender) for display in reviews and for future personalization. It
+reads and writes through the users API using the logged-in user's id.
+
+B.14 DINING PREFERENCES
+Preferences exist to capture structured taste (cuisines, budget, dietary,
+ambiance, sort bias) aligned with the lab spec and future AI tuning. Even when
+the chat pipeline is primarily embedding-driven, storing prefs documents intent
+for instructors and for possible hybrid ranking later.
+
+B.15 ACTIVITY HISTORY
+History exists as a personal audit trail: what you reviewed and which listings
+you added, merged into one reverse-chronological feed. It answers "what did I do
+on this app?" and supports assignment demos.
+
+B.16 ADD RESTAURANT (USER FLOW)
+This flow lets authenticated users contribute new listings to the directory,
+feeding the community dataset. Payload shape must align with POST /restaurants
+and database columns (created_by / created_by_user_id) so inserts do not fail
+silently.
+
+B.17 OWNER DASHBOARD
+The dashboard exists so approved owners see performance at a glance: how many
+venues they run, total reviews, overall average star rating, per-location
+distribution, and recent comments—supporting the "owner analytics" requirement.
+
+B.18 OWNER — MANAGE RESTAURANTS
+Owners need to correct hours, descriptions, or media after approval. This area
+lists restaurants where owner_id matches the JWT user and may support inline
+edits or photo workflows tied to owner APIs and photo routes.
+
+B.19 OWNER — REVIEWS BROWSER
+Owners must monitor sentiment without deleting legitimate criticism (read-only
+for owners). Selecting a restaurant loads reviews via the owner-scoped endpoint
+with a server-side check that the JWT user actually owns that restaurant_id.
+
+B.20 OWNER — SUBMIT NEW LISTING (PENDING)
+This path inserts restaurants with status pending so admins can moderate spam
+or incomplete listings before they appear as approved in public search.
+
+B.21 ADMIN — APPROVE OWNERS
+Admins resolve the signup backlog for role=owner by flipping is_approved,
+unlocking owner dashboard and pending submissions for legitimate businesses.
+
+B.22 ADMIN — APPROVE / REJECT RESTAURANTS
+Admins curate the public catalog by approving quality submissions or rejecting
+abuse; status changes are persisted on the restaurant row.
+
+B.23 ADMIN — ASSIGN / DEASSIGN OWNER
+Sometimes a venue exists without owner_id (e.g. seeded data). Admins bind an
+approved owner to a restaurant so the right person sees analytics and reviews,
+or clear owner_id during disputes.
+
+B.24 PHOTO UPLOAD (AZURE BLOB)
+Upload exists so images are not stored as BLOBs in MySQL: files go to Azure Blob
+for CDN-like URLs and cheaper scaling; MySQL stores metadata (url, optional
+uploaded_by). Validation rejects huge or non-image files.
+
+B.25 PHOTO DELETE
+Delete exists to comply with moderation and mistakes: authorized roles remove
+both the cloud object and the DB row to avoid orphan storage costs and broken
+links.
+
+B.26 FLOATING CHATBOT WIDGET
+The widget duplicates AI access from anywhere in the app (not only Explore) for
+logged-in users, with quick prompts and threaded messages. It reinforces the lab
+requirement that assistance is prominent and conversational.
+
+B.27 SEMANTIC CHAT BACKEND (/chat)
+The endpoint exists to combine modern NLP with relational data: embeddings turn
+vague language into geometry; cosine similarity picks rows; GPT turns IDs into
+human prose. It is the technical core of "smart search" beyond SQL LIKE.
+
+B.28 CORS, ROOT, AND SWAGGER
+CORS allows browser calls from the Vite origin during dev. GET / is a sanity
+check; /docs auto-documents every route for teammates and graders testing with
+Try-it-out.
+
+B.29  TOAST NOTIFICATIONS (react-hot-toast)
+Toasts exist to give immediate, non-blocking feedback after API success or
+failure (login errors, favourite toggles, review save). They replace intrusive
+alert() dialogs and keep users oriented without losing form state.
+
+B.30  OFFLINE / BATCH DATA PIPELINES (PYTHON SCRIPTS)
+Scripts such as generate_semantic_vectors.py, enrich_descriptions.py, and
+generate_extra_mock_data.py exist to prepare or repair data outside the request
+cycle: generating embeddings for /chat, enriching text with Wikipedia + LLM,
+or bulk-inserting synthetic reviews. They integrate with the same MySQL + Azure
+credentials as the API but run as one-off jobs during development or deployment.
+
+
+--------------------------------------------------------------------------------
+PART C — ACCOUNTS, CREDENTIALS & ENVIRONMENT (NO SECRETS IN REPO)
+--------------------------------------------------------------------------------
+
+C.1 DEMO / TEST ACCOUNTS (WHEN SEEDED IN DATABASE)
+--------------------------------------------------
+Typical seed data may include (passwords must exist in DB as bcrypt hashes):
+
+  Role   | Example email        | Notes
+  -------|----------------------|------------------------------------------
+  user   | user@example.com     | Standard reviewer
+  user   | alice@example.com    | May exist in mock_data / seeds
+  owner  | owner@example.com    | May require admin approval if is_approved=0
+  owner  | carlos@example.com   | Sample owner in some seeds
+  admin  | admin@example.com    | Full admin panel access
+
+Passwords are defined in your SQL seed or signup flow — use the values your
+team agreed on (e.g. password123 only if that hash exists in DB).
+
+C.2 AZURE MYSQL (TEAM SHARED DATABASE) — PLACEHOLDERS
+-----------------------------------------------------
+  DB_HOST     = (e.g. *.mysql.database.azure.com)
+  DB_USER     = (e.g. yelpadmin)
+  DB_PASSWORD = (from secure channel / Key Vault — never commit)
+  DB_NAME     = yelp_db
+
+C.3 AZURE OPENAI — PLACEHOLDERS
+-------------------------------
+  AZURE_OPENAI_API_KEY    = (secret)
+  AZURE_OPENAI_ENDPOINT   = (https://<resource>.openai.azure.com/)
+  Deployment names used in code: text-embedding-3-small, gpt-4o-mini
+  (must match your Azure resource deployment names.)
+
+C.4 AZURE BLOB STORAGE (PHOTO UPLOAD ROUTE)
+-------------------------------------------
+  AZURE_STORAGE_CONNECTION_STRING  = (secret)
+  AZURE_STORAGE_CONTAINER_NAME       = restaurant-photos (default if unset)
+
+  Public URL pattern:
+  https://<account>.blob.core.windows.net/<container>/<blob path>
+
+C.5 JWT
+-------
+  JWT_SECRET = long random string in backend/.env (required for production)
+
+C.6 FRONTEND
+------------
+  No API keys in frontend; Vite proxies /api → http://localhost:8000.
+
+
+--------------------------------------------------------------------------------
+PART D — OPERATIONS: START / STOP
+--------------------------------------------------------------------------------
+
+Backend (from repo root, after venv + pip install -r requirements.txt):
+
+  cd backend
+  source ../venv/bin/activate   # or your venv path
+  uvicorn main:app --reload --port 8000
+
+Frontend:
+
+  cd frontend
+  npm install
+  npm run dev
+
+URLs:
+  App:    http://localhost:5173
+  API:    http://localhost:8000
+  Docs:   http://localhost:8000/docs
+
+Stop: Ctrl+C in each terminal. If ports stuck:
+
+  lsof -ti :8000 | xargs kill -9
+  lsof -ti :5173 | xargs kill -9
+
+
+--------------------------------------------------------------------------------
+PART E — HOW EVERYTHING INTEGRATES (END-TO-END)
+--------------------------------------------------------------------------------
+
+E.0.1  REQUEST PATH (TYPICAL PAGE LOAD)
+The browser loads the SPA from Vite (port 5173). React Router picks a page
+component. That component calls functions in api.js; Axios sends HTTP to
+relative URLs under /api. Vite's dev proxy rewrites /api → http://localhost:8000
+so the FastAPI app receives bare paths like /restaurants or /login. FastAPI
+dispatches to the matching router function, which opens a MySQL connection via
+database.py, runs SQL, and returns JSON. Axios resolves; React setState updates
+the UI. If the route required JWT, the interceptor attached the Bearer token;
+if the token is missing or invalid, the backend returns 401 and the UI may
+redirect to login.
+
+E.0.2  AUTH FLOW
+Login.jsx posts credentials → users.login → token + user stored by
+AuthContext.login → localStorage. Every later call includes the token.
+ProtectedRoute reads context: no user → Navigate to /login; wrong role → home.
+Backend routes use Depends(get_current_user) or require_role([...]) to enforce
+the same rules server-side (never trust the UI alone).
+
+E.0.3  DATA FLOW (RESTAURANTS → DETAIL → REVIEWS)
+Explore lists rows from GET /restaurants (aggregated ratings + photo URLs).
+Clicking a card routes to /restaurants/:id. RestaurantDetail fetches the single
+restaurant, parallel fetches reviews and menu and favourite state. Submitting a
+review POSTs /reviews with JWT; the server binds user_id from the token. The
+list refreshes from GET /restaurants/:id/reviews. Ratings shown on cards come
+from SQL subqueries or aggregates in the restaurants routes.
+
+E.0.4  AI FLOW
+Explore AI mode or ChatBot posts { message, conversation_history } to /chat.
+chat.py embeds the message (Azure), scores rows with embeddings in MySQL,
+optionally calls GPT for a summary string, returns { response, restaurants }.
+The frontend displays text and maps restaurants to RestaurantCard components.
+
+E.0.5  OWNER / ADMIN FLOW
+Owner signup → pending until admin calls approve endpoint. Owner posts new
+restaurant → status pending → admin approves → row becomes visible in public
+queries depending on how list endpoints filter status. Admin assign links
+owner_id for seeded venues so the correct dashboard loads.
+
+E.0.6  PHOTO FLOW
+User selects file in RestaurantDetail → FormData POST /restaurants/{id}/photos
+→ photos.py streams bytes to Azure Blob → public URL inserted in
+restaurant_photos → detail page refetch shows new image. Delete removes blob
+then SQL row if authorized.
+
+
+--------------------------------------------------------------------------------
+PART E2 — DETAILED FILE-BY-FILE REFERENCE (BACKEND)
+--------------------------------------------------------------------------------
+
+backend/main.py
+  Central application entry: instantiates FastAPI, attaches CORSMiddleware for
+  the Vite origin, registers every APIRouter in one place so all routes share
+  the same app instance and OpenAPI schema. Defines lightweight health routes.
+
+backend/database.py
+  Single responsibility: read environment variables and return a live
+  mysql.connector connection. All route modules import this to avoid duplicating
+  connection strings. load_dotenv() ensures .env beside the working directory
+  is picked up when uvicorn runs from backend/.
+
+backend/auth.py
+  Encapsulates JWT creation (7-day expiry), decoding, and FastAPI dependencies.
+  get_current_user parses Bearer tokens and maps claims to a small dict used by
+  routes. require_role builds nested Depends() for admin-only or owner-only
+  endpoints without repeating if/raise logic.
+
+backend/.env.example
+  Documents required and optional variables for teammates cloning the repo;
+  never contains real secrets.
+
+backend/.env (local only, gitignored)
+  Runtime secrets: DB credentials, JWT_SECRET, Azure keys, storage connection
+  string. The running API and scripts read the same file.
+
+backend/routes/users.py
+  Public auth surface: signup inserts users with bcrypt hash and role logic;
+  login verifies hash and returns JWT + public user fields. Profile read/update
+  and listing a user's reviews/restaurants support Profile page and debugging;
+  note some queries assume column names that must match your schema.
+
+backend/routes/restaurants.py
+  Core catalog API: insert new rows; list all with LEFT JOIN photos and
+  subquery aggregates for average_rating and review_count; optional LIKE search;
+  single-row fetch with separate photo id list for deletes; menu endpoint reads
+  menu_items. This module is the backbone of Explore and RestaurantDetail.
+
+backend/routes/reviews.py
+  Social proof API: anonymous read of reviews for a venue; authenticated write
+  ties user_id to JWT; update/delete verify row ownership before mutating.
+
+backend/routes/favorites.py
+  Persistence of bookmarks in table `favourites` (British spelling). All
+  operations scoped by JWT user id to prevent cross-user data leaks.
+
+backend/routes/preferences.py
+  JSON-friendly dining preferences per user_id; GET returns empty object when
+  none; PUT upserts arrays serialized to DB columns.
+
+backend/routes/chat.py
+  AI discovery: numpy cosine_similarity helper; Azure embeddings + chat
+  completions; SQL load of embedded restaurants; strips vectors before JSON
+  response.
+
+backend/routes/history.py
+  Composes a UNION query of reviews authored by user and restaurants created_by
+  user for the History page timeline.
+
+backend/routes/owner.py
+  Prefix /owner: lists restaurants by owner_id; computes dashboard analytics in
+  Python loops; inserts pending restaurants for unapproved listing pipeline;
+  owner-scoped review listing with guard when role is owner.
+
+backend/routes/admin.py
+  Prefix /admin: moderation queue endpoints; validates status strings; assign
+  checks target user is approved owner before updating restaurant.owner_id.
+
+backend/routes/photos.py
+  Azure Blob SDK integration: validates MIME type and size, unique blob path,
+  upload_blob, then SQL insert. Delete reverses order with permission matrix
+  (admin, uploader, restaurant owner).
+
+backend/seed_live_data.py (if present in your branch)
+  Fetches OSM restaurant nodes; inserts restaurants and placeholder photos for
+  geographic demos without manual CSV work. Not present in all checkouts.
+
+backend/generate_semantic_vectors.py
+  Long-running async job: uses AsyncAzureOpenAI to generate rich descriptions,
+  structured menus, and embedding JSON per restaurant; writes back to MySQL so
+  /chat has vectors to score against.
+
+backend/enrich_descriptions.py
+  Optional enrichment pipeline combining Wikipedia lookups and OpenAI to replace
+  thin placeholder descriptions; useful when seed data is sparse.
+
+backend/generate_extra_mock_data.py
+  Batch-calls Azure chat to fabricate Yelp-style review JSON for many
+  restaurants, then inserts into reviews table for demos.
+
+backend/create_prompts.py
+  Reads restaurants from DB and emits SQL or data artifacts for mock users and
+  review prompts (supports generating consistent test user id ranges).
+
+backend/test_azure.py
+  Minimal script to verify Azure OpenAI connectivity from local env. SECURITY:
+  must not ship real API keys in source — use .env only; rotate any leaked keys.
+
+backend/test_fetch.py
+  Developer sanity check: can Python serialize datetime-heavy rows from MySQL to
+  JSON (catches driver issues early).
+
+mock_data.sql (repository root, when present)
+  Declarative schema and seed inserts for local MySQL; source of truth for
+  graders reproducing the app without Azure.
+
+yelp_prototype_features.txt (this document)
+  Living specification and handover guide for the team.
+
+
+--------------------------------------------------------------------------------
+PART E3 — DETAILED FILE-BY-FILE REFERENCE (FRONTEND)
+--------------------------------------------------------------------------------
+
+frontend/index.html
+  Static HTML5 document with root div and script entry for Vite; sets page
+  title and favicon reference; no business logic.
+
+frontend/vite.config.js
+  Build tooling: enables React plugin and Tailwind v4 plugin; critical dev
+  server proxy maps /api to backend port 8000 so the frontend always uses
+  same-origin relative URLs and avoids CORS during development.
+
+frontend/package.json
+  Declares npm scripts (dev, build, lint) and exact dependency versions for
+  reproducible installs across machines.
+
+frontend/package-lock.json
+  Lockfile generated by npm; pins transitive dependency versions for CI and
+  teammates.
+
+frontend/eslint.config.js
+  Static analysis rules for JS/JSX; catches common React mistakes and unused
+  variables in src/.
+
+frontend/README.md
+  Short frontend-only readme: stack list and npm commands for new developers.
+
+frontend/public/ (if present)
+  Static assets served as-is (icons, manifest); not processed by bundler unless
+  referenced.
+
+frontend/src/assets/
+  Bundler-imported static files (e.g. vite.svg, react.svg) for branding or
+  demos; optional references from JSX or index.html.
+
+frontend/src/main.jsx
+  Application bootstrap: creates React root on #root, wraps App in StrictMode,
+  BrowserRouter for URL sync, and AuthProvider so hooks work under router.
+
+frontend/src/App.jsx
+  Declarative route table mapping paths to page components; wraps sensitive
+  routes in ProtectedRoute; mounts global Navbar, Toaster, and ChatBot outside
+  Routes so they appear on every screen.
+
+frontend/src/index.css
+  Tailwind entry (@import "tailwindcss"); global style baseline for utility
+  classes used across JSX.
+
+frontend/src/context/AuthContext.jsx
+  Global state for authentication: hydrates from localStorage on mount;
+  login/logout/updateUser mutate both state and storage; exposes useAuth hook.
+
+frontend/src/services/api.js
+  Single HTTP façade: base URL /api, request interceptor for Bearer token,
+  grouped exports matching backend resource names; keeps pages free of raw URL
+  strings.
+
+frontend/src/components/Navbar.jsx
+  Primary navigation and branding; conditional links for owner/admin; profile
+  dropdown; responsive mobile drawer; calls logout and navigate.
+
+frontend/src/components/ProtectedRoute.jsx
+  Declarative guard component; shows spinner while auth hydrates; Navigate for
+  auth failures.
+
+frontend/src/components/RestaurantCard.jsx
+  Presentation component for restaurant summaries; handles image onError to
+  placeholder; supports compact variant for chat bubbles.
+
+frontend/src/components/StarRating.jsx
+  Visualizes numeric rating with Font Awesome stars; optional onRate callback
+  turns it into a review input control.
+
+frontend/src/components/ChatBot.jsx
+  Stateful floating panel: message list, input, quick actions, loading spinner;
+  delegates transport to chatAPI.
+
+frontend/src/pages/auth/Login.jsx
+  Controlled form for email/password; error toasts; success stores session and
+  routes to home.
+
+frontend/src/pages/auth/Signup.jsx
+  Extended form with role and owner fields; client validation; attempts auto
+  login after signup (must match backend contract). NOTE: If POST /signup does
+  not return access_token + user, align API or redirect to login after signup.
+
+frontend/src/pages/restaurant/Explore.jsx
+  Largest public surface: filter state, dual search modes, grid rendering,
+  optional demo credential callout, AI response banner.
+
+frontend/src/pages/restaurant/RestaurantDetail.jsx
+  Heaviest page: tabs, gallery, upload input ref, multiple useCallback fetchers,
+  review edit state machine, integration with photoAPI.
+
+frontend/src/pages/restaurant/AddRestaurant.jsx
+  Form posting to restaurant create endpoint with fields required by backend
+  schema.
+
+frontend/src/pages/user/Profile.jsx
+  Loads user by id from context; mirrors backend profile fields in inputs;
+  saves on submit.
+
+frontend/src/pages/user/Preferences.jsx
+  Checkbox/radio UX mapping to PreferencesPayload shape; loads existing prefs on
+  mount.
+
+frontend/src/pages/user/Favourites.jsx
+  Fetches JWT-scoped list; maps rows to RestaurantCard; remove filters local
+  state optimistically or after API success.
+
+frontend/src/pages/user/History.jsx
+  Parses /history items for type icon and date formatting; links to restaurant
+  routes.
+
+frontend/src/pages/owner/OwnerDashboard.jsx
+  Consumes dashboard JSON; renders summary cards and nested stats per venue.
+
+frontend/src/pages/owner/ManageRestaurant.jsx
+  Fetches owner restaurants; may wire PUT/update and photo upload per row.
+
+frontend/src/pages/owner/OwnerReviews.jsx
+  Dropdown or list to pick restaurant id; fetches owner-scoped reviews.
+
+frontend/src/pages/admin/AdminDashboard.jsx
+  Two panels: pending owners and pending restaurants; action buttons call
+  adminAPI helpers then refresh lists.
+
+
+--------------------------------------------------------------------------------
+PART E4 — REPOSITORY ROOT & ARTIFACTS (NOT SOURCE CODE)
+--------------------------------------------------------------------------------
+
+requirements.txt
+  Python dependency pins for pip; must stay in sync with imports in main app and
+  scripts (openai, numpy, azure-storage-blob, etc.).
+
+README.md
+  Human onboarding: clone, .env, uvicorn, npm run dev, Azure vs local notes.
+
+.gitignore
+  Prevents committing venv, node_modules, dist, secrets, and OS junk.
+
+frontend/dist/ (after npm run build)
+  Production static output; not edited by hand; deploy target for static hosts.
+
+frontend/node_modules/
+  Installed packages; never committed; regenerated via npm install.
+
+
+--------------------------------------------------------------------------------
+PART F — FUNCTION- & EXPORT-LEVEL REFERENCE (BY FILE)
+--------------------------------------------------------------------------------
+(Only exported route handlers, key helpers, and React components are listed.)
+
+backend/main.py
+  root() -> JSON greeting
+  test_db() -> list databases (dev diagnostic)
+
+backend/database.py
+  get_db_connection() -> mysql connection
+
+backend/auth.py
+  create_access_token(data: dict) -> JWT string
+  get_current_user(credentials) -> dict {id, role, is_approved}
+  require_role(allowed_roles) -> Depends(...) wrapper
+
+backend/routes/users.py
+  signup(SignupRequest) -> created message
+  login(LoginRequest) -> token + user or error message
+  get_user(user_id) -> user row
+  update_user(user_id, UserProfileUpdate) -> success message
+  get_user_reviews(user_id) -> list
+  get_user_restaurants(user_id) -> list (query uses created_by_user_id)
+
+backend/routes/restaurants.py
+  create_restaurant(RestaurantCreate) -> success
+  get_restaurants() -> list with photos + avg rating + review count
+  search_restaurants(name?, cuisine?, city?) -> filtered list
+  get_restaurant(restaurant_id) -> one row + photos + photo_ids
+  get_restaurant_menu(restaurant_id) -> menu_items rows
+
+backend/routes/reviews.py
+  create_review(ReviewCreate, user) -> insert review for JWT user
+  get_restaurant_reviews(restaurant_id) -> list with user_name
+  update_review(review_id, ReviewUpdate, user) -> partial update own review
+  delete_review(review_id, user) -> delete own review
+
+backend/routes/favorites.py
+  add_favorite(body, user) -> insert or 409 duplicate
+  get_favorites(user) -> restaurant rows for user
+  check_favorite(restaurant_id, user) -> {is_favourite}
+  remove_favorite(restaurant_id, user) -> delete row
+
+backend/routes/preferences.py
+  get_preferences(user) -> dict fields
+  update_preferences(PreferencesPayload, user) -> upsert
+
+backend/routes/chat.py
+  cosine_similarity(a, b) -> float
+  chat_endpoint(ChatMessage) -> {response, restaurants}
+
+backend/routes/history.py
+  get_history(user) -> {history: [...]}
+
+backend/routes/owner.py
+  get_owner_restaurants(user) -> rows where owner_id = user
+  get_owner_dashboard(user) -> aggregated analytics object
+  submit_new_restaurant(RestaurantCreate, user) -> pending insert
+  get_restaurant_reviews(restaurant_id, user) -> reviews with authz
+
+backend/routes/admin.py
+  get_pending_owners(user) -> list
+  approve_owner(owner_id, user) -> update is_approved
+  get_pending_restaurants(user) -> list
+  update_restaurant_status(restaurant_id, update, user)
+  assign_restaurant_owner(restaurant_id, assign, user)
+  deassign_restaurant_owner(restaurant_id, user)
+
+backend/routes/photos.py
+  get_blob_service() -> BlobServiceClient or HTTP 500
+  get_container_name() -> env or default
+  upload_photo(restaurant_id, file, user) -> validate, upload blob, insert DB
+  delete_photo(photo_id, user) -> authorize, delete blob, delete row
+
+frontend/src/context/AuthContext.jsx
+  AuthProvider, useAuth()
+  login(token, userData), logout(), updateUser(userData)
+
+frontend/src/services/api.js
+  Axios interceptors; grouped API method objects (see Part E.5)
+
+frontend/src/components/Navbar.jsx
+  default export Navbar()
+
+frontend/src/components/ProtectedRoute.jsx
+  default export ProtectedRoute({ children, allowedRoles })
+
+frontend/src/components/RestaurantCard.jsx
+  default export RestaurantCard({ restaurant, variant, compact, ... })
+
+frontend/src/components/StarRating.jsx
+  default export StarRating({ rating, onRate, size })
+
+frontend/src/components/ChatBot.jsx
+  default export ChatBot()
+
+frontend/src/pages/*/*.jsx
+  default export page components (Login, Signup, Explore, RestaurantDetail,
+  AddRestaurant, Profile, Preferences, Favourites, History, OwnerDashboard,
+  ManageRestaurant, OwnerReviews, AdminDashboard)
+
+frontend/src/App.jsx
+  default export App() — route table
+
+frontend/src/main.jsx
+  bootstraps React app
+
+
+--------------------------------------------------------------------------------
+PART G — KNOWN INTEGRATION NOTES FOR DEVELOPERS
+--------------------------------------------------------------------------------
+
+• Signup API vs Signup.jsx: If POST /signup does not return access_token and
+  user, the frontend login() after signup will not work until aligned.
+
+• History SQL uses restaurants.created_by; some other queries use
+  created_by_user_id — ensure DB column names match across features.
+
+• restaurantAPI.list() in Explore currently calls GET /restaurants with no query
+  params; price/cuisine filters may require using /restaurants/search or
+  extending the list endpoint.
+
+• RestaurantDetail photo delete permission checks business_owner role; backend
+  roles are owner/admin/user — verify role string consistency.
+
+• menu_items and restaurants.embedding columns must exist for menu and
+  semantic chat features respectively.
+
+• Azure SDK and numpy are required for photos.py and chat.py as implemented.
+
+
+================================================================================
+END OF DOCUMENT
+================================================================================
