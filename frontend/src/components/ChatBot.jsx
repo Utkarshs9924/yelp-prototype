@@ -153,8 +153,13 @@ export default function ChatBot() {
             ))}
             {loading && (
               <div className="flex justify-start">
-                <div className="bg-gray-200 rounded-2xl rounded-bl-md px-4 py-2">
-                  <FaSpinner className="animate-spin text-gray-600" size={18} />
+                <div className="bg-gray-200 rounded-2xl rounded-bl-md px-4 py-2 flex items-center gap-3">
+                  <div className="flex gap-1">
+                    <span className="w-1.5 h-1.5 bg-gray-600 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+                    <span className="w-1.5 h-1.5 bg-gray-600 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+                    <span className="w-1.5 h-1.5 bg-gray-600 rounded-full animate-bounce"></span>
+                  </div>
+                  <span className="text-xs text-gray-500 font-medium italic">Assistant is thinking...</span>
                 </div>
               </div>
             )}

@@ -1,10 +1,18 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 import os
 import json
 import numpy as np
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from database import get_db_connection
+from auth import get_current_user
+
+# Langchain imports
+from langchain_openai import AzureChatOpenAI, AzureOpenAIEmbeddings
+from langchain_community.tools.tavily_search import TavilySearchResults
+from langchain.agents import AgentExecutor, create_openai_functions_agent
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain.tools import tool
 
 router = APIRouter(tags=["Chat"])
 
@@ -13,96 +21,163 @@ class ChatMessage(BaseModel):
     conversation_history: List[Dict[str, Any]] = []
 
 def cosine_similarity(a, b):
-    """Compute cosine similarity between two vectors."""
     a = np.array(a)
     b = np.array(b)
-    return float(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b)))
+    dot = np.dot(a, b)
+    norm_a = np.linalg.norm(a)
+    norm_b = np.linalg.norm(b)
+    if norm_a == 0 or norm_b == 0: return 0
+    return float(dot / (norm_a * norm_b))
 
-@router.post("/chat")
-def chat_endpoint(data: ChatMessage):
+# This list will store restaurants found by the local tool during the current request
+found_restaurants_store = []
+
+@tool
+def search_local_restaurants(query: str) -> str:
+    """
+    Search for restaurants in our local database using semantic similarity. 
+    Use this when the user asks for recommendations, specific cuisines, or 'where to eat' 
+    within our known catalog.
+    """
+    global found_restaurants_store
     try:
-        from openai import AzureOpenAI
-        client = AzureOpenAI(
-            api_key=os.getenv("AZURE_OPENAI_API_KEY"),
-            api_version="2025-01-01-preview",
-            azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT")
+        # 1. Embed the query
+        embeddings = AzureOpenAIEmbeddings(
+            azure_deployment="text-embedding-3-small",
+            openai_api_version="2024-02-01",
+            azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+            api_key=os.getenv("AZURE_OPENAI_API_KEY")
         )
+        query_vector = embeddings.embed_query(query)
         
-        # ── Step 1: Embed the user's query ──────────────────────────
-        embed_response = client.embeddings.create(
-            input=data.message,
-            model="text-embedding-3-small"
-        )
-        query_vector = embed_response.data[0].embedding
-        
-        # ── Step 2: Get all restaurant vectors from DB ──────────────
+        # 2. Get local data
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
-        
-        cursor.execute("""
-            SELECT r.id, r.name, r.cuisine_type, r.description, r.address,
-                   r.city, r.state, r.zip_code, r.phone, r.email, r.website,
-                   r.hours_of_operation, r.pricing_tier, r.amenities, r.ambiance,
-                   r.owner_id, r.created_by, r.created_at, r.updated_at, r.status,
-                   r.embedding,
-                   GROUP_CONCAT(rp.photo_url) as photos_str,
-                   COALESCE((SELECT AVG(rv.rating) FROM reviews rv WHERE rv.restaurant_id = r.id), 0) as average_rating,
-                   COALESCE((SELECT COUNT(*) FROM reviews rv WHERE rv.restaurant_id = r.id), 0) as review_count
-            FROM restaurants r
-            LEFT JOIN restaurant_photos rp ON r.id = rp.restaurant_id
-            WHERE r.embedding IS NOT NULL
-            GROUP BY r.id
-        """)
+        cursor.execute("SELECT * FROM restaurants WHERE embedding IS NOT NULL")
         all_restaurants = cursor.fetchall()
-        conn.close()
         
-        # ── Step 3: Compute cosine similarity for each restaurant ───
+        # 3. Compute similarities
         scored = []
         for r in all_restaurants:
-            try:
-                emb = r['embedding']
-                if isinstance(emb, str):
-                    emb = json.loads(emb)
-                
-                sim = cosine_similarity(query_vector, emb)
-                scored.append((sim, r))
-            except Exception:
-                continue
+            emb = r['embedding']
+            if isinstance(emb, str): emb = json.loads(emb)
+            sim = cosine_similarity(query_vector, emb)
+            scored.append((sim, r))
         
-        # Sort by highest similarity
         scored.sort(key=lambda x: x[0], reverse=True)
+        top_matches = scored[:5]
         
-        # Take top 5 results
-        top_results = []
-        for score, r in scored[:5]:
-            r.pop('embedding', None)  # Don't send the giant vector to the frontend
-            r['photos'] = r['photos_str'].split(',') if r.get('photos_str') else []
-            r.pop('photos_str', None)
-            r['similarity_score'] = round(score, 4)
-            top_results.append(r)
+        # 4. Fetch photos and ratings for matches
+        results_text = []
+        for sim, r in top_matches:
+            # Clean up for the LLM
+            r.pop('embedding', None)
+            
+            # Fetch extra details
+            cursor.execute("SELECT photo_url FROM restaurant_photos WHERE restaurant_id = %s", (r['id'],))
+            r['photos'] = [p['photo_url'] for p in cursor.fetchall()]
+            
+            cursor.execute("SELECT AVG(rating), COUNT(*) FROM reviews WHERE restaurant_id = %s", (r['id'],))
+            row = cursor.fetchone()
+            avg = row['AVG(rating)']
+            count = row['COUNT(*)']
+            r['average_rating'] = float(avg) if avg else 0
+            r['review_count'] = count
+            
+            found_restaurants_store.append(r)
+            results_text.append(f"- {r['name']} ({r['cuisine_type']}): {r['description']}. Rating: {r['average_rating']} ({r['review_count']} reviews)")
         
-        if not top_results:
-            return {
-                "response": "I couldn't find any restaurants matching your request. Try a different description!",
-                "restaurants": []
-            }
+        conn.close()
+        return "Found these restaurants in our database:\n" + "\n".join(results_text)
+    except Exception as e:
+        print(f"Tool Error: {e}")
+        return f"Error searching local database: {str(e)}"
+
+@router.post("/chat")
+async def chat_endpoint(data: ChatMessage, user: dict = Depends(get_current_user)):
+    global found_restaurants_store
+    found_restaurants_store = [] # Reset for new request
+    
+    if not os.getenv("TAVILY_API_KEY"):
+        # Graceful fallback or warning if Tavily is missing
+        print("WARNING: TAVILY_API_KEY is not set.")
+    
+    try:
+        # 1. Fetch User Preferences
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM preferences WHERE user_id = %s", (user['id'],))
+        prefs = cursor.fetchone()
+        conn.close()
         
-        # ── Step 4: Generate a smart AI response ────────────────────
-        names_list = ", ".join([f"**{r['name']}** ({r['cuisine_type']})" for r in top_results])
+        prefs_str = json.dumps(prefs) if prefs else "No specific preferences saved."
         
-        summary_response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "You are a friendly restaurant recommendation assistant. Write a single short, enthusiastic sentence recommending these restaurants to the user based on what they asked for. Be concise (max 2 sentences)."},
-                {"role": "user", "content": f"The user asked: '{data.message}'. The top semantic matches are: {names_list}. Write a quick recommendation."}
-            ],
+        # 2. Initialize LLM & Tools
+        llm = AzureChatOpenAI(
+            azure_deployment="gpt-4o-mini",
+            openai_api_version="2024-02-01",
+            azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+            api_key=os.getenv("AZURE_OPENAI_API_KEY"),
             temperature=0.7
         )
         
-        reply = summary_response.choices[0].message.content.strip()
+        # Tavily Search Tool (Required by Lab 1 PDF)
+        # We only add it if the key exists and isn't a placeholder
+        tools = [search_local_restaurants]
+        tavily_key = os.getenv("TAVILY_API_KEY")
+        if tavily_key and "YourAPIKeyHere" not in tavily_key:
+            try:
+                tavily_tool = TavilySearchResults(k=3)
+                tools.append(tavily_tool)
+                print("Tavily Search Tool initialized successfully.")
+            except Exception as e:
+                print(f"Failed to initialize Tavily: {e}")
+        else:
+            print("Tavily key missing or placeholder. Skipping web search tool.")
         
-        return {"response": reply, "restaurants": top_results}
+        # 3. Build the Agent
+        # Note: we must escape curly braces in prefs_str because ChatPromptTemplate 
+        # interprets them as input variables.
+        safe_prefs = prefs_str.replace("{", "{{").replace("}", "}}")
+        
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", f"""You are 'Yelp Assistant', a helpful and enthusiastic AI. 
+            The current user's saved preferences are: {safe_prefs}.
+            
+            GUIDELINES:
+            1. Use 'search_local_restaurants' to find spots in our database.
+            2. If you need real-time info (hours, special events, or trending news) that might not be in our DB, use the 'tavily_search_results_json' tool.
+            3. If 'tavily_search_results_json' tool is missing, just rely on our local database.
+            4. Always mention if a recommendation matches the user's saved preferences (e.g., 'Matches your preference for Italian!').
+            5. Keep responses conversational and concise (max 3 sentences).
+            """),
+            MessagesPlaceholder(variable_name="chat_history"),
+            ("user", "{input}"),
+            MessagesPlaceholder(variable_name="agent_scratchpad"),
+        ])
+        
+        agent = create_openai_functions_agent(llm, tools, prompt)
+        agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
+        
+        # 4. Execute
+        result = agent_executor.invoke({
+            "input": data.message,
+            "chat_history": [] 
+        })
+        
+        # Deduplicate results in store
+        unique_restaurants = []
+        seen_ids = set()
+        for r in found_restaurants_store:
+            if r['id'] not in seen_ids:
+                unique_restaurants.append(r)
+                seen_ids.add(r['id'])
+        
+        return {
+            "response": result["output"],
+            "restaurants": unique_restaurants
+        }
         
     except Exception as e:
-        print("Chatbot Error:", e)
+        print("Chatbot Agent Error:", e)
         raise HTTPException(status_code=500, detail=str(e))
