@@ -53,7 +53,7 @@ def get_restaurants():
     cursor = conn.cursor(dictionary=True)
 
     query = """
-    SELECT r.*,
+    SELECT r.id, r.name, r.cuisine_type, r.description, r.address, r.city, r.state, r.zip_code, r.phone, r.email, r.website, r.hours_of_operation, r.pricing_tier, r.amenities, r.ambiance, r.owner_id, r.created_by, r.created_at, r.updated_at, r.status, r.views,
            GROUP_CONCAT(rp.photo_url) as photos_str,
            COALESCE((SELECT AVG(rv.rating) FROM reviews rv WHERE rv.restaurant_id = r.id), 0) as average_rating,
            COALESCE((SELECT COUNT(*) FROM reviews rv WHERE rv.restaurant_id = r.id), 0) as review_count
@@ -87,7 +87,7 @@ def search_restaurants(
     cursor = conn.cursor(dictionary=True)
 
     query = """
-    SELECT r.*,
+    SELECT r.id, r.name, r.cuisine_type, r.description, r.address, r.city, r.state, r.zip_code, r.phone, r.email, r.website, r.hours_of_operation, r.pricing_tier, r.amenities, r.ambiance, r.owner_id, r.created_by, r.created_at, r.updated_at, r.status, r.views,
            GROUP_CONCAT(rp.photo_url) as photos_str,
            COALESCE((SELECT AVG(rv.rating) FROM reviews rv WHERE rv.restaurant_id = r.id), 0) as average_rating,
            COALESCE((SELECT COUNT(*) FROM reviews rv WHERE rv.restaurant_id = r.id), 0) as review_count
