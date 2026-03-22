@@ -252,7 +252,10 @@ cd yelp-prototype
 
 ### 2. Set Up the Database
 1. Start your MySQL server
-2. Run the SQL schema above to create the `yelp_db` database and all tables
+2. Run the provided `mock_data.sql` script to create the `yelp_db` database, tables, and insert all mock data (including users, restaurants, and reviews):
+```bash
+mysql -u root -p < mock_data.sql
+```
 
 ### 3. Set Up the Backend
 ```bash
