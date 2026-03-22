@@ -21,7 +21,7 @@ git clone https://github.com/Utkarshs9924/yelp-prototype.git
 cd yelp-prototype
 ```
 
-> If you cloned into a folder named `yelp-teammate` or similar, `cd` into that folder instead — the important part is you are at the **project root** (where `requirements.txt`, `backend/`, and `frontend/` live).
+> If you cloned into a folder named `yelp-prototype` or similar, `cd` into that folder instead — the important part is you are at the **project root** (where `requirements.txt`, `backend/`, and `frontend/` live).
 
 ### 2. Configure environment variables
 

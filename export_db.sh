@@ -1,5 +1,5 @@
 #!/bin/bash
-cd /Users/akash/dev/DATA236/Lab/yelp-teammate
+cd /Users/akash/dev/DATA236/Lab/yelp-prototype
 echo "Exporting yelp_db database to mock_data.sql..."
 
 # Note: Using root without password if DB_PASSWORD is empty like in the .env, 
