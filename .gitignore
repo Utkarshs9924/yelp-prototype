@@ -1,8 +1,28 @@
-# Ignore local environment files and dependencies so sensitive data (like DB passwords) 
-# and large folders are not pushed to GitHub
+# Python
 venv/
 __pycache__/
-node_modules/
-.envnode_modules/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+
+# Environment
 .env
 backend/.env
+
+# Node
+node_modules/
+dist/
+
+# OS
+.DS_Store
+*.log
+*.swp
+*.swo
+
+# IDE
+.idea/
+.vscode/
+
+# Uploads
+uploads/

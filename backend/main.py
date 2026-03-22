@@ -33,4 +33,4 @@ def test_db():
     cursor.execute("SHOW DATABASES;")
     databases = cursor.fetchall()
     conn.close()
-    return {"databases": databases}# trigger reload
+    return {"databases": databases}
