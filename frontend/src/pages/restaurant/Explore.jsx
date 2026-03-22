@@ -178,30 +178,7 @@ export default function Explore() {
         </div>
       </div>
       
-      {/* Demo Credentials Card */}
-      {searchMode === 'standard' && (
-        <div className="max-w-6xl mx-auto px-4 mt-8 animate-fade-in">
-          <div className="bg-yellow-50 border border-yellow-200 p-5 rounded-xl shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
-            <div>
-              <h3 className="text-lg font-bold text-yellow-900 flex items-center gap-2">
-                <span className="text-2xl">🔑</span> Demo Credentials
-              </h3>
-              <p className="text-sm text-yellow-800 mt-1">Use these accounts to test the different role-based views.</p>
-            </div>
-            <div className="flex gap-4 flex-wrap justify-end">
-              <div className="bg-white px-4 py-2 rounded-lg border border-yellow-100 shadow-sm text-sm whitespace-nowrap">
-                <span className="font-semibold text-gray-700">User:</span> user@example.com / password123
-              </div>
-              <div className="bg-white px-4 py-2 rounded-lg border border-yellow-100 shadow-sm text-sm whitespace-nowrap">
-                <span className="font-semibold text-gray-700">Owner:</span> owner@example.com / password123
-              </div>
-              <div className="bg-white px-4 py-2 rounded-lg border border-yellow-100 shadow-sm text-sm whitespace-nowrap">
-                <span className="font-semibold text-gray-700">Admin:</span> admin@example.com / password123
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+
 
       {/* Filters & Content */}
       <div className="max-w-6xl mx-auto px-4 py-6">
