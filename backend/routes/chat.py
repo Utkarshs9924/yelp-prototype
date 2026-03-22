@@ -54,7 +54,10 @@ def chat_endpoint(data: ChatMessage):
         cursor = conn.cursor(dictionary=True)
         
         sql = """
-        SELECT r.*, GROUP_CONCAT(rp.photo_url) as photos_str 
+        SELECT r.*,
+               GROUP_CONCAT(rp.photo_url) as photos_str,
+               COALESCE((SELECT AVG(rv.rating) FROM reviews rv WHERE rv.restaurant_id = r.id), 0) as average_rating,
+               COALESCE((SELECT COUNT(*) FROM reviews rv WHERE rv.restaurant_id = r.id), 0) as review_count
         FROM restaurants r 
         LEFT JOIN restaurant_photos rp ON r.id = rp.restaurant_id 
         WHERE 1=1
