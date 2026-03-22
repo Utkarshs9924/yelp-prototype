@@ -35,9 +35,10 @@ export const reviewAPI = {
 };
 
 export const favouriteAPI = {
-  list: (userId) => api.get(`/favorites/${userId}`),
-  add: (data) => api.post('/favorites', data),
-  remove: (id) => api.delete(`/favorites/${id}`),
+  list: () => api.get('/favorites'),
+  add: (restaurantId) => api.post('/favorites', { restaurant_id: restaurantId }),
+  remove: (restaurantId) => api.delete(`/favorites/${restaurantId}`),
+  check: (restaurantId) => api.get(`/favorites/check/${restaurantId}`),
 };
 
 export const preferencesAPI = {
@@ -51,7 +52,7 @@ export const chatAPI = {
 };
 
 export const historyAPI = {
-  get: (userId) => api.get(`/history/${userId}`),
+  get: () => api.get('/history'),
 };
 
 export const ownerAPI = {
