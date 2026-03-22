@@ -3,7 +3,7 @@ YELP PROTOTYPE — SOLUTION APPROACH & FEATURE DOCUMENTATION
 ================================================================================
 Document type: Technical solution / handover guide
 Project: DATA 236 Lab 1 — Restaurant discovery, reviews, owners, admin, AI
-Last updated: March 2026
+Last updated: March 2026 (Tavily + LangChain /chat, walkthrough.md)
 
 --------------------------------------------------------------------------------
 PART A — EXECUTIVE SUMMARY & SOLUTION APPROACH
@@ -26,10 +26,11 @@ for approvals and analytics. The stack is:
     reviews, favourites (British spelling in DB), preferences, restaurant_photos,
     and optionally menu_items and embedding columns for semantic search.
 
-  • AI: Azure OpenAI — text-embedding-3-small for vector similarity on
-    restaurants (when embeddings exist), gpt-4o-mini for natural-language
-    summaries in the /chat flow. Optional utility scripts enrich descriptions
-    and generate menu data offline.
+  • AI: POST /chat uses LangChain with Azure OpenAI (gpt-4o-mini agent,
+    text-embedding-3-small for the local tool), plus optional Tavily web search
+    (TAVILY_API_KEY) for real-time answers. A custom tool searches the MySQL
+    catalog by embedding cosine similarity. Optional utility scripts enrich
+    descriptions and generate menu data offline.
 
 SOLUTION APPROACH (HOW THE SYSTEM SOLVES THE LAB REQUIREMENTS)
 --------------------------------------------------------------
@@ -39,7 +40,8 @@ SOLUTION APPROACH (HOW THE SYSTEM SOLVES THE LAB REQUIREMENTS)
 2) Discovery: Explore page lists restaurants with optional filters; standard
    mode loads from GET /restaurants (client may still send filter intent; server
    list endpoint returns aggregated ratings). "Ask AI Assistant" and the
-   floating ChatBot call POST /chat for semantic retrieval + LLM reply.
+   floating ChatBot call POST /chat for a LangChain agent: local semantic
+   retrieval (embeddings) plus optional Tavily web search and an LLM reply.
 
 3) Detail: Restaurant detail shows photos (DB URLs or Azure uploads), menu tab
    via GET /restaurants/{id}/menu, reviews tab, favourite heart, photo upload
@@ -110,10 +112,13 @@ or Azure services are unavailable.
 
 B.7  EXPLORE — "ASK AI ASSISTANT" MODE
 This mode exists for natural-language discovery: users describe intent ("romantic
-Italian under $$ in SF") instead of clicking filters. The frontend sends the
-text to POST /chat; the backend embeds the query, ranks restaurants by vector
-similarity, and asks GPT to phrase a short recommendation. The grid updates to
-the returned matches so the experience stays visual, not just a chat bubble.
+Italian under $$ in SF" or "2024 sushi spots in San Francisco from food blogs")
+instead of clicking filters. The frontend sends the text to POST /chat; the
+backend runs a LangChain OpenAI-functions agent that can call search_local_restaurants
+(Azure embeddings + cosine similarity over MySQL) and, when TAVILY_API_KEY is set,
+Tavily for live web results. User preferences from the preferences table are
+injected into the system prompt. The UI shows the assistant reply and restaurant
+cards built from rows collected during the local tool invocations.
 
 B.8  RESTAURANT CARDS
 RestaurantCard exists as a reusable visual unit: same component appears on
@@ -213,10 +218,22 @@ The widget duplicates AI access from anywhere in the app (not only Explore) for
 logged-in users, with quick prompts and threaded messages. It reinforces the lab
 requirement that assistance is prominent and conversational.
 
-B.27 SEMANTIC CHAT BACKEND (/chat)
-The endpoint exists to combine modern NLP with relational data: embeddings turn
-vague language into geometry; cosine similarity picks rows; GPT turns IDs into
-human prose. It is the technical core of "smart search" beyond SQL LIKE.
+B.27 LANGCHAIN CHAT BACKEND (/chat)
+The endpoint exists to combine local catalog intelligence with live web context.
+It uses LangChain's create_openai_functions_agent with AzureChatOpenAI
+(gpt-4o-mini): a @tool search_local_restaurants embeds the query, scores
+restaurants with numpy cosine similarity, enriches matches with photos and
+review aggregates, and accumulates rows for the JSON response. When Tavily is
+configured, TavilySearchResults adds tavily_search_results_json so the agent can
+answer time-sensitive questions (openings, trends, blog roundups). The agent
+executor returns output text plus deduplicated restaurants for the frontend.
+
+B.31 TAVILY WEB SEARCH (REAL-TIME)
+Tavily satisfies Lab-style requirements for grounding answers in the public web
+without hard-coding crawl logic. The API key is read from TAVILY_API_KEY; if
+missing or placeholder, the agent runs with only the local restaurant tool. This
+keeps the app usable in dev while full stack demos show 2024/2025-style answers
+alongside database cards.
 
 B.28 CORS, ROOT, AND SWAGGER
 CORS allows browser calls from the Vite origin during dev. GET / is a sanity
@@ -268,6 +285,12 @@ C.3 AZURE OPENAI — PLACEHOLDERS
   AZURE_OPENAI_ENDPOINT   = (https://<resource>.openai.azure.com/)
   Deployment names used in code: text-embedding-3-small, gpt-4o-mini
   (must match your Azure resource deployment names.)
+
+C.3b TAVILY (WEB SEARCH FOR /chat)
+-----------------------------------
+  TAVILY_API_KEY = (secret from tavily.com)
+  Used by langchain_community TavilySearchResults when key is present and not a
+  placeholder string in code.
 
 C.4 AZURE BLOB STORAGE (PHOTO UPLOAD ROUTE)
 -------------------------------------------
@@ -344,10 +367,13 @@ list refreshes from GET /restaurants/:id/reviews. Ratings shown on cards come
 from SQL subqueries or aggregates in the restaurants routes.
 
 E.0.4  AI FLOW
-Explore AI mode or ChatBot posts { message, conversation_history } to /chat.
-chat.py embeds the message (Azure), scores rows with embeddings in MySQL,
-optionally calls GPT for a summary string, returns { response, restaurants }.
-The frontend displays text and maps restaurants to RestaurantCard components.
+Explore AI mode or ChatBot posts { message, conversation_history } to /chat
+(JWT required). chat.py loads user preferences, builds a LangChain agent with
+AzureChatOpenAI, search_local_restaurants (embeddings + cosine similarity), and
+optionally TavilySearchResults. The agent invokes tools as needed; matching local
+rows are stored in a request-scoped list and returned as restaurants after
+deduplication by id. The frontend displays result["output"] and maps
+restaurants to RestaurantCard components.
 
 E.0.5  OWNER / ADMIN FLOW
 Owner signup → pending until admin calls approve endpoint. Owner posts new
@@ -357,9 +383,9 @@ owner_id for seeded venues so the correct dashboard loads.
 
 E.0.6  PHOTO FLOW
 User selects file in RestaurantDetail → FormData POST /restaurants/{id}/photos
-→ photos.py streams bytes to Azure Blob → public URL inserted in
-restaurant_photos → detail page refetch shows new image. Delete removes blob
-then SQL row if authorized.
+→ photos.py validates type/size → utils/blob_storage.upload_to_blob → public URL
+inserted in restaurant_photos → detail refetch. Delete uses delete_from_blob
+then removes the DB row if authorized.
 
 
 --------------------------------------------------------------------------------
@@ -416,9 +442,13 @@ backend/routes/preferences.py
   none; PUT upserts arrays serialized to DB columns.
 
 backend/routes/chat.py
-  AI discovery: numpy cosine_similarity helper; Azure embeddings + chat
-  completions; SQL load of embedded restaurants; strips vectors before JSON
-  response.
+  LangChain agent: AzureChatOpenAI + AzureOpenAIEmbeddings; @tool
+  search_local_restaurants; optional TavilySearchResults; preferences in system
+  prompt; returns { response, restaurants }.
+
+backend/utils/blob_storage.py
+  Shared Azure Blob helpers: get_blob_service, upload_to_blob, delete_from_blob,
+  used by photos route.
 
 backend/routes/history.py
   Composes a UNION query of reviews authored by user and restaurants created_by
@@ -434,9 +464,9 @@ backend/routes/admin.py
   checks target user is approved owner before updating restaurant.owner_id.
 
 backend/routes/photos.py
-  Azure Blob SDK integration: validates MIME type and size, unique blob path,
-  upload_blob, then SQL insert. Delete reverses order with permission matrix
-  (admin, uploader, restaurant owner).
+  Multipart upload/delete: validates MIME and 10MB cap; delegates blob I/O to
+  utils/blob_storage; SQL insert/delete on restaurant_photos with permission
+  checks (admin, uploader, restaurant owner).
 
 backend/seed_live_data.py (if present in your branch)
   Fetches OSM restaurant nodes; inserts restaurants and placeholder photos for
@@ -609,8 +639,12 @@ PART E4 — REPOSITORY ROOT & ARTIFACTS (NOT SOURCE CODE)
 --------------------------------------------------------------------------------
 
 requirements.txt
-  Python dependency pins for pip; must stay in sync with imports in main app and
-  scripts (openai, numpy, azure-storage-blob, etc.).
+  Python dependency pins for pip; includes fastapi stack, langchain,
+  langchain-openai, langchain-community, tavily-python, numpy, azure-storage-blob.
+
+walkthrough.md
+  Lab verification guide: run stack, Tavily + AI Assistant tests, Menu tab,
+  Azure Blob photos, troubleshooting, optional artifacts/ screenshots.
 
 README.md
   Human onboarding: clone, .env, uvicorn, npm run dev, Azure vs local notes.
@@ -675,7 +709,8 @@ backend/routes/preferences.py
 
 backend/routes/chat.py
   cosine_similarity(a, b) -> float
-  chat_endpoint(ChatMessage) -> {response, restaurants}
+  search_local_restaurants(query) -> str  # LangChain @tool
+  chat_endpoint(ChatMessage, user) -> {response, restaurants}  # LangChain agent + Tavily optional
 
 backend/routes/history.py
   get_history(user) -> {history: [...]}
@@ -694,11 +729,12 @@ backend/routes/admin.py
   assign_restaurant_owner(restaurant_id, assign, user)
   deassign_restaurant_owner(restaurant_id, user)
 
+backend/utils/blob_storage.py
+  get_blob_service(), upload_to_blob(...), delete_from_blob(...)
+
 backend/routes/photos.py
-  get_blob_service() -> BlobServiceClient or HTTP 500
-  get_container_name() -> env or default
-  upload_photo(restaurant_id, file, user) -> validate, upload blob, insert DB
-  delete_photo(photo_id, user) -> authorize, delete blob, delete row
+  upload_photo(restaurant_id, file, user) -> validate, utils upload, insert DB
+  delete_photo(photo_id, user) -> authorize, utils delete blob, delete row
 
 frontend/src/context/AuthContext.jsx
   AuthProvider, useAuth()
@@ -754,7 +790,15 @@ PART G — KNOWN INTEGRATION NOTES FOR DEVELOPERS
 • menu_items and restaurants.embedding columns must exist for menu and
   semantic chat features respectively.
 
-• Azure SDK and numpy are required for photos.py and chat.py as implemented.
+• Python deps: langchain, langchain-community, langchain-openai, tavily-python,
+  numpy, azure-storage-blob must be installed (see requirements.txt) or imports
+  fail on startup.
+
+• TAVILY_API_KEY: without it, /chat still runs but only the local restaurant tool
+  is registered (check server log for "Skipping web search tool").
+
+• Lab walkthrough for graders/teammates: walkthrough.md (Tavily verification,
+  Menu tab, Blob photos, troubleshooting).
 
 
 ================================================================================
