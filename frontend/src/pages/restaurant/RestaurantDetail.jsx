@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { FaHeart, FaRegHeart, FaMapMarkerAlt, FaPhone, FaEnvelope, FaGlobe, FaEdit, FaTrash, FaUtensils } from 'react-icons/fa';
-import { restaurantAPI, reviewAPI, favouriteAPI } from '../../services/api';
+import { FaHeart, FaRegHeart, FaMapMarkerAlt, FaPhone, FaEnvelope, FaGlobe, FaEdit, FaTrash, FaUtensils, FaCamera, FaTimesCircle } from 'react-icons/fa';
+import { restaurantAPI, reviewAPI, favouriteAPI, photoAPI } from '../../services/api';
+import { useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import StarRating from '../../components/StarRating';
 import toast from 'react-hot-toast';
@@ -22,6 +23,10 @@ export default function RestaurantDetail() {
   const [editingReviewId, setEditingReviewId] = useState(null);
   const [editComment, setEditComment] = useState('');
   const [activeTab, setActiveTab] = useState('menu');
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef(null);
+
+  const canDeletePhotos = user && (user.role === 'admin' || user.role === 'business_owner');
 
   const userReview = reviews.find((r) => r.user_id === user?.id || r.user?.id === user?.id);
 
@@ -226,19 +231,44 @@ export default function RestaurantDetail() {
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-6">
           {/* Photos Gallery */}
           {photos.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1">
-              {photos.slice(0, 6).map((url, i) => (
-                <div key={i} className="aspect-[4/3] overflow-hidden">
-                  <img
-                    src={url}
-                    alt={`${restaurant.name} ${i + 1}`}
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      e.target.src = 'https://placehold.co/400x300/e5e7eb/9ca3af?text=No+Image';
-                    }}
-                  />
-                </div>
-              ))}
+            <div className="relative">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1">
+                {photos.slice(0, 6).map((url, i) => (
+                  <div key={i} className="aspect-[4/3] overflow-hidden relative group">
+                    <img
+                      src={url}
+                      alt={`${restaurant.name} ${i + 1}`}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.target.src = 'https://placehold.co/400x300/e5e7eb/9ca3af?text=No+Image';
+                      }}
+                    />
+                    {canDeletePhotos && (
+                      <button
+                        onClick={async () => {
+                          const photoId = restaurant.photo_ids?.[i];
+                          if (!photoId) {
+                            toast.error('Could not find photo ID');
+                            return;
+                          }
+                          if (!window.confirm('Delete this photo?')) return;
+                          try {
+                            await photoAPI.delete(photoId);
+                            toast.success('Photo deleted');
+                            fetchRestaurant();
+                          } catch (err) {
+                            toast.error(err.response?.data?.detail || 'Failed to delete photo');
+                          }
+                        }}
+                        className="absolute top-2 right-2 bg-black/60 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+                        title="Delete photo"
+                      >
+                        <FaTimesCircle size={18} />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
           ) : (
             <div className="aspect-[21/9] bg-gray-200 flex items-center justify-center">
@@ -247,6 +277,42 @@ export default function RestaurantDetail() {
                 alt={restaurant.name}
                 className="w-full h-full object-cover"
               />
+            </div>
+          )}
+
+          {/* Upload Photo Button */}
+          {user && (
+            <div className="px-6 py-3 bg-gray-50 border-t border-gray-100 flex items-center gap-3">
+              <input
+                type="file"
+                ref={fileInputRef}
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                className="hidden"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  setUploading(true);
+                  try {
+                    await photoAPI.upload(restaurant_id, file);
+                    toast.success('Photo uploaded! 📸');
+                    fetchRestaurant();
+                  } catch (err) {
+                    toast.error(err.response?.data?.detail || 'Failed to upload photo');
+                  } finally {
+                    setUploading(false);
+                    e.target.value = '';
+                  }
+                }}
+              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 text-sm font-medium"
+              >
+                <FaCamera size={14} />
+                {uploading ? 'Uploading...' : 'Add Photo'}
+              </button>
+              <span className="text-xs text-gray-400">JPEG, PNG, WebP, GIF • Max 10MB</span>
             </div>
           )}
 
