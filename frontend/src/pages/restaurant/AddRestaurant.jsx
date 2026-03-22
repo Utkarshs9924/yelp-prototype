@@ -81,7 +81,8 @@ export default function AddRestaurant() {
         payload.amenities = payload.amenities
           .split(/[,\n]/)
           .map((a) => a.trim())
-          .filter(Boolean);
+          .filter(Boolean)
+          .join(', ');
       }
 
       const { data } = await restaurantAPI.create(payload);
