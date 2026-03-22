@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 import os
 import json
+import numpy as np
 from typing import List, Dict, Any
 from database import get_db_connection
 
@@ -11,21 +12,15 @@ class ChatMessage(BaseModel):
     message: str
     conversation_history: List[Dict[str, Any]] = []
 
+def cosine_similarity(a, b):
+    """Compute cosine similarity between two vectors."""
+    a = np.array(a)
+    b = np.array(b)
+    return float(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b)))
+
 @router.post("/chat")
 def chat_endpoint(data: ChatMessage):
     try:
-        import openai
-        
-        system_msg = """
-        You are a Yelp-style restaurant search assistant.
-        Extract search filters from the user query. Output ONLY a valid JSON object with keys: 
-        'cuisine' (string or null), 'max_price' (integer 1-4 or null), 'city' (string or null).
-        Example 1: "I want cheap Mexican in San Francisco" -> {"cuisine": "Mexican", "max_price": 1, "city": "San Francisco"}
-        Example 2: "Fancy italian places" -> {"cuisine": "Italian", "max_price": 4, "city": null}
-        Example 3: "Sushi near me" -> {"cuisine": "Sushi", "max_price": null, "city": null}
-        Do not output any markdown formatting, just the raw JSON object.
-        """
-        
         from openai import AzureOpenAI
         client = AzureOpenAI(
             api_key=os.getenv("AZURE_OPENAI_API_KEY"),
@@ -33,69 +28,80 @@ def chat_endpoint(data: ChatMessage):
             azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT")
         )
         
-        # In Azure, the model parameter must match your deployment name.
-        # We assume you name your deployment "gpt-4o-mini"
-        filter_response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": system_msg},
-                {"role": "user", "content": data.message}
-            ],
-            temperature=0
+        # ── Step 1: Embed the user's query ──────────────────────────
+        embed_response = client.embeddings.create(
+            input=data.message,
+            model="text-embedding-3-small"
         )
+        query_vector = embed_response.data[0].embedding
         
-        raw_json = filter_response.choices[0].message.content.strip().strip('`').strip('json').strip()
-        try:
-            filters = json.loads(raw_json)
-        except:
-            filters = {}
-
+        # ── Step 2: Get all restaurant vectors from DB ──────────────
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
         
-        sql = """
-        SELECT r.*,
-               GROUP_CONCAT(rp.photo_url) as photos_str,
-               COALESCE((SELECT AVG(rv.rating) FROM reviews rv WHERE rv.restaurant_id = r.id), 0) as average_rating,
-               COALESCE((SELECT COUNT(*) FROM reviews rv WHERE rv.restaurant_id = r.id), 0) as review_count
-        FROM restaurants r 
-        LEFT JOIN restaurant_photos rp ON r.id = rp.restaurant_id 
-        WHERE 1=1
-        """
-        params = []
-        
-        if filters.get('cuisine'):
-            sql += " AND r.cuisine_type LIKE %s"
-            params.append(f"%{filters['cuisine']}%")
-        if filters.get('city'):
-            sql += " AND r.city LIKE %s"
-            params.append(f"%{filters['city']}%")
-        if filters.get('max_price'):
-            sql += " AND r.pricing_tier <= %s"
-            params.append(str(filters['max_price']))
-            
-        sql += " GROUP BY r.id LIMIT 5"
-        cursor.execute(sql, tuple(params))
-        results = cursor.fetchall()
+        cursor.execute("""
+            SELECT r.id, r.name, r.cuisine_type, r.description, r.address,
+                   r.city, r.state, r.zip_code, r.phone, r.email, r.website,
+                   r.hours_of_operation, r.pricing_tier, r.amenities, r.ambiance,
+                   r.owner_id, r.created_by, r.created_at, r.updated_at, r.status,
+                   r.embedding,
+                   GROUP_CONCAT(rp.photo_url) as photos_str,
+                   COALESCE((SELECT AVG(rv.rating) FROM reviews rv WHERE rv.restaurant_id = r.id), 0) as average_rating,
+                   COALESCE((SELECT COUNT(*) FROM reviews rv WHERE rv.restaurant_id = r.id), 0) as review_count
+            FROM restaurants r
+            LEFT JOIN restaurant_photos rp ON r.id = rp.restaurant_id
+            WHERE r.embedding IS NOT NULL
+            GROUP BY r.id
+        """)
+        all_restaurants = cursor.fetchall()
         conn.close()
-
-        for r in results:
+        
+        # ── Step 3: Compute cosine similarity for each restaurant ───
+        scored = []
+        for r in all_restaurants:
+            try:
+                emb = r['embedding']
+                if isinstance(emb, str):
+                    emb = json.loads(emb)
+                
+                sim = cosine_similarity(query_vector, emb)
+                scored.append((sim, r))
+            except Exception:
+                continue
+        
+        # Sort by highest similarity
+        scored.sort(key=lambda x: x[0], reverse=True)
+        
+        # Take top 5 results
+        top_results = []
+        for score, r in scored[:5]:
+            r.pop('embedding', None)  # Don't send the giant vector to the frontend
             r['photos'] = r['photos_str'].split(',') if r.get('photos_str') else []
             r.pop('photos_str', None)
-
-        if not results:
+            r['similarity_score'] = round(score, 4)
+            top_results.append(r)
+        
+        if not top_results:
             return {
-                "response": "I couldn't find any restaurants matching your exact criteria. Try adjusting your preferences!", 
+                "response": "I couldn't find any restaurants matching your request. Try a different description!",
                 "restaurants": []
             }
-            
-        cuisine_text = filters.get('cuisine', '')
-        if cuisine_text:
-            reply = f"I found {len(results)} fantastic {cuisine_text} spots for you! Check out my top recommendations below:"
-        else:
-            reply = f"I found {len(results)} excellent options matching your request! Here are my top picks:"
         
-        return {"response": reply, "restaurants": results}
+        # ── Step 4: Generate a smart AI response ────────────────────
+        names_list = ", ".join([f"**{r['name']}** ({r['cuisine_type']})" for r in top_results])
+        
+        summary_response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "You are a friendly restaurant recommendation assistant. Write a single short, enthusiastic sentence recommending these restaurants to the user based on what they asked for. Be concise (max 2 sentences)."},
+                {"role": "user", "content": f"The user asked: '{data.message}'. The top semantic matches are: {names_list}. Write a quick recommendation."}
+            ],
+            temperature=0.7
+        )
+        
+        reply = summary_response.choices[0].message.content.strip()
+        
+        return {"response": reply, "restaurants": top_results}
         
     except Exception as e:
         print("Chatbot Error:", e)
