@@ -21,12 +21,13 @@ def get_owner_dashboard(user: dict = Depends(require_role(["owner", "admin"]))):
     cursor = conn.cursor(dictionary=True)
     
     # 1. Get all restaurants owned by the user
-    cursor.execute("SELECT id, name FROM restaurants WHERE owner_id = %s", (user["id"],))
+    cursor.execute("SELECT id, name, views FROM restaurants WHERE owner_id = %s", (user["id"],))
     restaurants = cursor.fetchall()
     
     dashboard = {
         "total_restaurants": len(restaurants),
         "total_reviews": 0,
+        "total_views": sum(r["views"] or 0 for r in restaurants),
         "overall_average_rating": 0.0,
         "restaurants": []
     }
@@ -55,6 +56,10 @@ def get_owner_dashboard(user: dict = Depends(require_role(["owner", "admin"]))):
         sum_ratings = sum(rev["rating"] for rev in reviews)
         avg_rating = sum_ratings / review_count if review_count > 0 else 0
         
+        # Sentiment Index: % of 4-5 star reviews
+        positive_reviews = sum(1 for rev in reviews if rev["rating"] >= 4)
+        sentiment_index = (positive_reviews / review_count * 100) if review_count > 0 else 0
+        
         rating_dist = {5:0, 4:0, 3:0, 2:0, 1:0}
         for rev in reviews:
             if rev["rating"] in rating_dist:
@@ -63,7 +68,9 @@ def get_owner_dashboard(user: dict = Depends(require_role(["owner", "admin"]))):
         dashboard["restaurants"].append({
             "id": r_id,
             "name": r["name"],
+            "views": r["views"] or 0,
             "average_rating": avg_rating,
+            "sentiment_index": round(sentiment_index, 1),
             "review_count": review_count,
             "rating_distribution": rating_dist,
             "recent_reviews": reviews[:5]  # Last 5 reviews

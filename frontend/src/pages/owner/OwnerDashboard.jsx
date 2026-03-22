@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { FaStore, FaComments, FaStar } from 'react-icons/fa';
+import { FaStore, FaComments, FaStar, FaEye, FaSmile } from 'react-icons/fa';
 import { ownerAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import StarRating from '../../components/StarRating';
@@ -66,6 +66,15 @@ export default function OwnerDashboard() {
             </div>
           </div>
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex items-center gap-4">
+            <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
+              <FaEye className="text-green-600" size={20} />
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Total Views</p>
+              <p className="text-2xl font-bold text-gray-900">{dashboard.total_views || 0}</p>
+            </div>
+          </div>
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex items-center gap-4">
             <div className="w-12 h-12 rounded-full bg-yellow-100 flex items-center justify-center">
               <FaStar className="text-yellow-500" size={20} />
             </div>
@@ -87,6 +96,15 @@ export default function OwnerDashboard() {
                   <span className="text-sm text-gray-500">
                     {r.average_rating.toFixed(1)} ({r.review_count} reviews)
                   </span>
+                  <div className="h-4 w-px bg-gray-200 mx-1 hidden sm:block" />
+                  <div className="flex items-center gap-1.5 text-blue-600 font-medium text-sm">
+                    <FaEye size={14} />
+                    <span>{r.views} views</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-green-600 font-medium text-sm bg-green-50 px-2 py-1 rounded">
+                    <FaSmile size={14} />
+                    <span>{r.sentiment_index}% Positive</span>
+                  </div>
                 </div>
               </div>
 
