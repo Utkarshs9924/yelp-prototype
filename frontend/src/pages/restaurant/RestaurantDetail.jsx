@@ -24,7 +24,9 @@ export default function RestaurantDetail() {
   const [editComment, setEditComment] = useState('');
   const [activeTab, setActiveTab] = useState('menu');
   const [uploading, setUploading] = useState(false);
+  const [reviewFile, setReviewFile] = useState(null);
   const fileInputRef = useRef(null);
+  const reviewPhotoRef = useRef(null);
 
   const canDeletePhotos = user && (user.role === 'admin' || user.role === 'business_owner');
 
@@ -117,20 +119,39 @@ export default function RestaurantDetail() {
     }
     setSubmitting(true);
     try {
+      let photo_url = null;
+      if (reviewFile) {
+        const { data: uploadRes } = await reviewAPI.uploadPhoto(reviewFile);
+        photo_url = uploadRes.photo_url;
+      }
+
       await reviewAPI.create({
         restaurant_id: Number(restaurant_id),
         rating: reviewRating,
         comment: reviewComment.trim() || undefined,
+        photo_url: photo_url
       });
       toast.success('Review submitted!');
       setReviewRating(0);
       setReviewComment('');
+      setReviewFile(null);
       fetchReviews();
       fetchRestaurant();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to submit review');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleClaim = async () => {
+    if (!window.confirm('Are you the authorized owner of this business? Your claim will be reviewed by an administrator.')) return;
+    try {
+      const { data } = await restaurantAPI.claim(restaurant_id);
+      toast.success(data.message);
+      fetchRestaurant();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Failed to claim restaurant');
     }
   };
 
@@ -225,10 +246,10 @@ export default function RestaurantDetail() {
     : [];
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <main className="min-h-screen bg-gray-50">
       <div className="max-w-5xl mx-auto px-4 py-6">
         {/* Header */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-6">
+        <header className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-6">
           {/* Photos Gallery */}
           {photos.length > 0 ? (
             <div className="relative">
@@ -351,6 +372,15 @@ export default function RestaurantDetail() {
                 )}
                 <span>{isFavourite ? 'Favourited' : 'Favourite'}</span>
               </button>
+
+              {user?.role === 'owner' && !restaurant.owner_id && (
+                <button
+                  onClick={handleClaim}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium shadow-sm"
+                >
+                  Claim this Business
+                </button>
+              )}
             </div>
 
             {/* Contact & Info */}
@@ -431,7 +461,7 @@ export default function RestaurantDetail() {
               </div>
             )}
           </div>
-        </div>
+        </header>
 
         {/* Tabs */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
@@ -510,6 +540,30 @@ export default function RestaurantDetail() {
                       rows={4}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 mb-3"
                     />
+                    
+                    <div className="flex items-center gap-4 mb-4">
+                      <input
+                        type="file"
+                        ref={reviewPhotoRef}
+                        onChange={(e) => setReviewFile(e.target.files[0])}
+                        className="hidden"
+                        accept="image/*"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => reviewPhotoRef.current.click()}
+                        className="flex items-center gap-2 px-3 py-1.5 border border-gray-300 rounded-md text-sm hover:bg-gray-100"
+                      >
+                        <FaCamera className="text-gray-500" />
+                        {reviewFile ? 'Change Photo' : 'Attach Photo'}
+                      </button>
+                      {reviewFile && (
+                        <span className="text-xs text-gray-500 truncate max-w-[200px]">
+                          {reviewFile.name}
+                        </span>
+                      )}
+                    </div>
+
                     <button
                       type="submit"
                       disabled={submitting || reviewRating < 1}
@@ -536,7 +590,7 @@ export default function RestaurantDetail() {
                       const isEditing = editingReviewId === review.id;
 
                       return (
-                        <div
+                        <article
                           key={review.id}
                           className="p-4 border border-gray-100 rounded-lg hover:bg-gray-50/50"
                         >
@@ -603,14 +657,24 @@ export default function RestaurantDetail() {
                               {review.comment && (
                                 <p className="mt-1 text-gray-600 text-sm">{review.comment}</p>
                               )}
-                              <p className="mt-1 text-xs text-gray-400">
+                              {review.photo_url && (
+                                <div className="mt-3 max-w-[200px] rounded-lg overflow-hidden border border-gray-200">
+                                  <img 
+                                    src={review.photo_url} 
+                                    alt={`Review by ${review.user?.name ?? review.user_name ?? 'Anonymous'}`} 
+                                    className="w-full h-auto cursor-pointer hover:scale-105 transition-transform"
+                                    onClick={() => window.open(review.photo_url, '_blank')}
+                                  />
+                                </div>
+                              )}
+                              <p className="mt-2 text-xs text-gray-400">
                                 {review.created_at
                                   ? new Date(review.created_at).toLocaleDateString()
                                   : ''}
                               </p>
                             </>
                           )}
-                        </div>
+                        </article>
                       );
                     })
                   )}
@@ -620,6 +684,6 @@ export default function RestaurantDetail() {
           </div>
         </div>
       </div>
-    </div>
+    </main>
   );
 }

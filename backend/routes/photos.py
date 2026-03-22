@@ -2,20 +2,9 @@ from fastapi import APIRouter, HTTPException, UploadFile, File, Depends
 from database import get_db_connection
 from auth import get_current_user
 import os
-import uuid
-from azure.storage.blob import BlobServiceClient
+from utils.blob_storage import upload_to_blob, delete_from_blob
 
 router = APIRouter(tags=["Photos"])
-
-def get_blob_service():
-    conn_str = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
-    if not conn_str:
-        raise HTTPException(status_code=500, detail="Azure Storage not configured")
-    return BlobServiceClient.from_connection_string(conn_str)
-
-def get_container_name():
-    return os.getenv("AZURE_STORAGE_CONTAINER_NAME", "restaurant-photos")
-
 
 @router.post("/restaurants/{restaurant_id}/photos")
 async def upload_photo(
@@ -33,28 +22,8 @@ async def upload_photo(
     if len(contents) > 10 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="File size must be under 10MB")
 
-    # Generate unique blob name
-    ext = file.filename.rsplit('.', 1)[-1] if '.' in file.filename else 'jpg'
-    blob_name = f"{restaurant_id}/{uuid.uuid4().hex}.{ext}"
-    
-    # Upload to Azure Blob Storage
-    try:
-        from azure.storage.blob import ContentSettings
-        blob_service = get_blob_service()
-        container = get_container_name()
-        blob_client = blob_service.get_blob_client(container=container, blob=blob_name)
-        
-        blob_client.upload_blob(contents, content_settings=ContentSettings(
-            content_type=file.content_type
-        ))
-    except Exception as e:
-        print(f"FAILED Azure Upload: {e}")
-        raise HTTPException(status_code=500, detail=f"Azure Storage error: {str(e)}")
-
-
-    
-    # Build public URL
-    photo_url = f"https://{blob_service.account_name}.blob.core.windows.net/{container}/{blob_name}"
+    # Upload to Azure Blob Storage using utility
+    photo_url = await upload_to_blob(contents, file.filename, file.content_type, folder=f"{restaurant_id}")
     
     try:
         # Save to database
@@ -69,14 +38,14 @@ async def upload_photo(
         conn.close()
     except Exception as e:
         print(f"FAILED SQL Insert: {e}")
+        # Cleanup blob if DB fails
+        await delete_from_blob(photo_url)
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
     
     return {"id": photo_id, "photo_url": photo_url, "message": "Photo uploaded successfully"}
 
-
-
 @router.delete("/photos/{photo_id}")
-def delete_photo(photo_id: int, user: dict = Depends(get_current_user)):
+async def delete_photo(photo_id: int, user: dict = Depends(get_current_user)):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     
@@ -101,17 +70,8 @@ def delete_photo(photo_id: int, user: dict = Depends(get_current_user)):
         conn.close()
         raise HTTPException(status_code=403, detail="You don't have permission to delete this photo")
     
-    # Delete from Azure Blob Storage
-    try:
-        blob_service = get_blob_service()
-        container = get_container_name()
-        # Extract blob name from URL
-        base_url = f"https://{blob_service.account_name}.blob.core.windows.net/{container}/"
-        blob_name = photo['photo_url'].replace(base_url, '')
-        blob_client = blob_service.get_blob_client(container=container, blob=blob_name)
-        blob_client.delete_blob()
-    except Exception as e:
-        print(f"Warning: Could not delete blob from Azure: {e}")
+    # Delete from Azure Blob Storage using utility
+    await delete_from_blob(photo['photo_url'])
     
     # Delete from database
     cursor.execute("DELETE FROM restaurant_photos WHERE id = %s", (photo_id,))

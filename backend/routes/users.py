@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from pydantic import BaseModel
 from typing import Optional
 from database import get_db_connection
 import bcrypt
 from auth import create_access_token, get_current_user
+from utils.blob_storage import upload_to_blob
 
 router = APIRouter(tags=["Users"])
 
@@ -137,6 +138,41 @@ def update_user(user_id: int, user: UserProfileUpdate):
     conn.close()
 
     return {"message": "Profile updated successfully"}
+
+
+@router.post("/users/upload-picture")
+async def upload_user_picture(
+    file: UploadFile = File(...),
+    user: dict = Depends(get_current_user)
+):
+    # Validate file type
+    allowed_types = ["image/jpeg", "image/png", "image/webp", "image/gif"]
+    if file.content_type not in allowed_types:
+        raise HTTPException(status_code=400, detail="Only JPEG, PNG, WebP, and GIF images are allowed")
+    
+    # Max 5MB for profile pics
+    contents = await file.read()
+    if len(contents) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File size must be under 5MB")
+
+    # Upload to Azure Blob Storage using utility (folder = avatars)
+    photo_url = await upload_to_blob(contents, file.filename, file.content_type, folder="avatars")
+    
+    try:
+        # Save to database
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE users SET profile_picture = %s WHERE id = %s",
+            (photo_url, user['id'])
+        )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"FAILED SQL Update Profile Pic: {e}")
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+    
+    return {"profile_picture": photo_url, "message": "Profile picture updated"}
 
 
 @router.get("/users/{user_id}/reviews")

@@ -72,8 +72,8 @@ export default function Profile() {
     if (!pictureFile) return;
     setUploading(true);
     try {
-      const { data } = await userAPI.uploadPicture(pictureFile);
-      updateUser({ ...user, ...data });
+      const { data } = await userAPI.uploadProfilePicture(pictureFile);
+      updateUser({ ...user, profile_picture: data.profile_picture });
       setPictureFile(null);
       toast.success('Profile picture updated');
     } catch (err) {

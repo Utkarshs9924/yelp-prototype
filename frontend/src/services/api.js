@@ -18,6 +18,13 @@ export const authAPI = {
 export const userAPI = {
   getProfile: (userId) => api.get(`/users/${userId}`),
   updateProfile: (userId, data) => api.put(`/users/${userId}`, data),
+  uploadProfilePicture: (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post('/users/upload-picture', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
 };
 
 export const restaurantAPI = {
@@ -26,6 +33,7 @@ export const restaurantAPI = {
   get: (id) => api.get(`/restaurants/${id}`),
   create: (data) => api.post('/restaurants', data),
   getMenu: (id) => api.get(`/restaurants/${id}/menu`),
+  claim: (id) => api.post(`/restaurants/${id}/claim`),
 };
 
 export const reviewAPI = {
@@ -33,6 +41,13 @@ export const reviewAPI = {
   create: (data) => api.post('/reviews', data),
   update: (id, data) => api.put(`/reviews/${id}`, data),
   delete: (id) => api.delete(`/reviews/${id}`),
+  uploadPhoto: (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post('/reviews/upload-photo', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
 };
 
 export const favouriteAPI = {

@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from pydantic import BaseModel
 from typing import Optional
 from database import get_db_connection
 from auth import get_current_user
+from utils.blob_storage import upload_to_blob
 
 router = APIRouter(tags=["Reviews"])
 
@@ -11,12 +12,32 @@ class ReviewCreate(BaseModel):
     restaurant_id: int
     rating: int
     comment: Optional[str] = None
-    user_id: Optional[int] = None
+    photo_url: Optional[str] = None
 
 
 class ReviewUpdate(BaseModel):
     rating: Optional[int] = None
     comment: Optional[str] = None
+
+
+@router.post("/reviews/upload-photo")
+async def upload_review_photo(
+    file: UploadFile = File(...),
+    user: dict = Depends(get_current_user)
+):
+    # Validate file type
+    allowed_types = ["image/jpeg", "image/png", "image/webp", "image/gif"]
+    if file.content_type not in allowed_types:
+        raise HTTPException(status_code=400, detail="Only JPEG, PNG, WebP, and GIF images are allowed")
+    
+    # Max 5MB
+    contents = await file.read()
+    if len(contents) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File size must be under 5MB")
+
+    # Upload to Azure Blob Storage (folder = reviews)
+    photo_url = await upload_to_blob(contents, file.filename, file.content_type, folder="reviews")
+    return {"photo_url": photo_url}
 
 
 @router.post("/reviews")
@@ -27,10 +48,10 @@ def create_review(review: ReviewCreate, user: dict = Depends(get_current_user)):
     cursor = conn.cursor()
 
     query = """
-    INSERT INTO reviews (user_id, restaurant_id, rating, comment)
-    VALUES (%s, %s, %s, %s)
+    INSERT INTO reviews (user_id, restaurant_id, rating, comment, photo_url)
+    VALUES (%s, %s, %s, %s, %s)
     """
-    cursor.execute(query, (uid, review.restaurant_id, review.rating, review.comment))
+    cursor.execute(query, (uid, review.restaurant_id, review.rating, review.comment, review.photo_url))
 
     conn.commit()
     conn.close()
