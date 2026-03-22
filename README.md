@@ -4,7 +4,7 @@ A full-stack Yelp-style restaurant discovery and review platform with an **AI As
 
 **Course:** DATA 236 | **Lab 1** | Spring 2026
 
-**Team:** **Akash Kumar** (frontend) · **Utkarsh Sharma** (backend)
+**Team:** **Akash Kumar** (frontend, AI) · **Utkarsh Sharma** (backend)
 
 **Repository:** `https://github.com/Utkarshs9924/yelp-prototype`
 
