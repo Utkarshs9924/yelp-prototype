@@ -4,6 +4,8 @@ A full-stack Yelp-style restaurant discovery and review platform with an AI-powe
 
 **Course:** DATA 236 | **Lab 1** | Spring 2026
 
+**Team:** **Akash Kumar** (frontend) · **Utkarsh Sharma** (backend)
+
 **Repository:** `https://github.com/Utkarshs9924/yelp-prototype`
 
 ---
@@ -372,10 +374,10 @@ See `mock_data.sql` in the repo or use the DDL in previous revisions of this REA
 
 ---
 
-## Team Contributions
+## Team contributions
 
-- **Backend** (Utkarsh): FastAPI REST API, MySQL (including Azure), JWT authentication, RBAC middleware, AI chatbot (Azure OpenAI), OpenStreetMap seeder, owner/admin workflows
-- **Frontend** (Akash): React UI with Vite + TailwindCSS, pages (Explore, Restaurant Detail, Auth, Profile, Preferences, Favourites, History, Owner Dashboard, Admin Panel), responsive design, API integration, AI UI, cuisine image fallbacks
+- **Utkarsh Sharma (backend):** FastAPI REST API, MySQL (including Azure), JWT authentication, RBAC middleware, AI chatbot (Azure OpenAI), OpenStreetMap seeder, owner/admin workflows
+- **Akash Kumar (frontend):** React UI with Vite + TailwindCSS, pages (Explore, Restaurant Detail, Auth, Profile, Preferences, Favourites, History, Owner Dashboard, Admin Panel), responsive design, API integration, AI UI, cuisine image fallbacks
 
 ---
 
