@@ -1,26 +1,27 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from typing import Optional
 from database import get_db_connection
-
-router = APIRouter()
+from auth import get_current_user
 
 router = APIRouter(tags=["Reviews"])
 
 
 class ReviewCreate(BaseModel):
-    user_id: int
     restaurant_id: int
     rating: int
-    comment: str
+    comment: Optional[str] = None
+    user_id: Optional[int] = None
 
 
 class ReviewUpdate(BaseModel):
-    rating: int
-    comment: str
+    rating: Optional[int] = None
+    comment: Optional[str] = None
 
 
 @router.post("/reviews")
-def create_review(review: ReviewCreate):
+def create_review(review: ReviewCreate, user: dict = Depends(get_current_user)):
+    uid = user["id"]
 
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -29,13 +30,7 @@ def create_review(review: ReviewCreate):
     INSERT INTO reviews (user_id, restaurant_id, rating, comment)
     VALUES (%s, %s, %s, %s)
     """
-
-    cursor.execute(query, (
-        review.user_id,
-        review.restaurant_id,
-        review.rating,
-        review.comment
-    ))
+    cursor.execute(query, (uid, review.restaurant_id, review.rating, review.comment))
 
     conn.commit()
     conn.close()
@@ -45,59 +40,75 @@ def create_review(review: ReviewCreate):
 
 @router.get("/restaurants/{restaurant_id}/reviews")
 def get_restaurant_reviews(restaurant_id: int):
-
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
 
     query = """
-    SELECT reviews.id, reviews.rating, reviews.comment, reviews.review_date,
-           users.name as user_name
+    SELECT reviews.id, reviews.user_id, reviews.rating, reviews.comment,
+           reviews.created_at, users.name as user_name
     FROM reviews
     JOIN users ON reviews.user_id = users.id
     WHERE reviews.restaurant_id = %s
+    ORDER BY reviews.created_at DESC
     """
-
     cursor.execute(query, (restaurant_id,))
     reviews = cursor.fetchall()
 
     conn.close()
-
     return reviews
 
 
 @router.put("/reviews/{review_id}")
-def update_review(review_id: int, review: ReviewUpdate):
-
+def update_review(review_id: int, review: ReviewUpdate, user: dict = Depends(get_current_user)):
     conn = get_db_connection()
-    cursor = conn.cursor()
+    cursor = conn.cursor(dictionary=True)
 
-    query = """
-    UPDATE reviews
-    SET rating = %s, comment = %s
-    WHERE id = %s
-    """
+    cursor.execute("SELECT user_id FROM reviews WHERE id = %s", (review_id,))
+    existing = cursor.fetchone()
+    if not existing:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Review not found")
+    if existing["user_id"] != user["id"]:
+        conn.close()
+        raise HTTPException(status_code=403, detail="You can only edit your own reviews")
 
-    cursor.execute(query, (
-        review.rating,
-        review.comment,
-        review_id
-    ))
+    updates = []
+    params = []
+    if review.rating is not None:
+        updates.append("rating = %s")
+        params.append(review.rating)
+    if review.comment is not None:
+        updates.append("comment = %s")
+        params.append(review.comment)
+
+    if not updates:
+        conn.close()
+        return {"message": "Nothing to update"}
+
+    params.append(review_id)
+    query = f"UPDATE reviews SET {', '.join(updates)} WHERE id = %s"
+    cursor.execute(query, tuple(params))
 
     conn.commit()
     conn.close()
-
     return {"message": "Review updated successfully"}
 
 
 @router.delete("/reviews/{review_id}")
-def delete_review(review_id: int):
-
+def delete_review(review_id: int, user: dict = Depends(get_current_user)):
     conn = get_db_connection()
-    cursor = conn.cursor()
+    cursor = conn.cursor(dictionary=True)
 
-    query = "DELETE FROM reviews WHERE id = %s"
-    cursor.execute(query, (review_id,))
+    cursor.execute("SELECT user_id FROM reviews WHERE id = %s", (review_id,))
+    existing = cursor.fetchone()
+    if not existing:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Review not found")
+    if existing["user_id"] != user["id"]:
+        conn.close()
+        raise HTTPException(status_code=403, detail="You can only delete your own reviews")
 
+    cursor.execute("DELETE FROM reviews WHERE id = %s", (review_id,))
     conn.commit()
     conn.close()
 
