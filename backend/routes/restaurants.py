@@ -136,7 +136,7 @@ def search_restaurants(
         params.append(pricing_tier)
 
     if zip_code:
-        base_query += " AND r.address LIKE %s"
+        base_query += " AND r.zip_code LIKE %s"
         params.append(f"%{zip_code}%")
 
     # 1. Get total count for entries matching search

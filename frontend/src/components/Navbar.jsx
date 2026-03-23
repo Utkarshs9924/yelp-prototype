@@ -31,8 +31,8 @@ export default function Navbar() {
   };
 
   const navLinkClass = ({ isActive }) =>
-    `px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-      isActive ? 'bg-red-700 text-white' : 'text-white hover:bg-red-600'
+    `px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+      isActive ? 'bg-white text-red-600' : 'bg-white text-red-600 hover:bg-gray-100'
     }`;
 
   return (
@@ -140,13 +140,13 @@ export default function Navbar() {
               <div className="flex items-center gap-2 ml-2">
                 <Link
                   to="/login"
-                  className="px-3 py-2 rounded-md text-sm font-medium hover:bg-red-700 transition-colors"
+                  className="px-4 py-2 rounded-lg text-sm font-semibold bg-white text-red-600 hover:bg-gray-100 transition"
                 >
                   Login
                 </Link>
                 <Link
                   to="/signup"
-                  className="px-3 py-2 rounded-md text-sm font-medium bg-white text-red-600 hover:bg-gray-100 transition-colors"
+                  className="px-4 py-2 rounded-lg text-sm font-semibold bg-white text-red-600 hover:bg-gray-100 transition"
                 >
                   Sign Up
                 </Link>

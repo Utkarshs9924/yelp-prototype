@@ -59,7 +59,6 @@ export const favouriteAPI = {
 
 export const preferencesAPI = {
   get: () => api.get(`/preferences`),
-  create: (data) => api.post('/preferences', data),
   update: (data) => api.put(`/preferences`, data),
 };
 
@@ -87,7 +86,7 @@ export const ownerAPI = {
   getStats: (ownerId) => api.get(`/owner/${ownerId}/stats`),
   getRestaurants: () => api.get(`/owner/restaurants`),
   getReviews: (restaurantId) => api.get(`/owner/restaurants/${restaurantId}/reviews`),
-  createRestaurant: (data) => api.post('/owner/restaurants', data)
+  createRestaurant: (data) => api.post('/owner/restaurants', data),
 };
 
 export const adminAPI = {
@@ -96,7 +95,7 @@ export const adminAPI = {
   getPendingRestaurants: () => api.get('/admin/restaurants/pending'),
   updateRestaurantStatus: (id, status) => api.put(`/admin/restaurants/${id}/status`, { status }),
   assignOwner: (id, ownerId) => api.put(`/admin/restaurants/${id}/assign`, { owner_id: ownerId }),
-  deassignOwner: (id) => api.put(`/admin/restaurants/${id}/deassign`)
+  deassignOwner: (id) => api.put(`/admin/restaurants/${id}/deassign`),
 };
 
 export default api;
