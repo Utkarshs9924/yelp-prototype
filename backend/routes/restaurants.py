@@ -62,11 +62,17 @@ def create_restaurant(restaurant: RestaurantCreate, user: dict = Depends(get_cur
 
 
 @router.get("/restaurants")
-def get_restaurants():
+def get_restaurants(page: int = 1, limit: int = 30):
 
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
 
+    # 1. Get total count
+    cursor.execute("SELECT COUNT(*) as total FROM restaurants")
+    total = cursor.fetchone()['total']
+
+    # 2. Get paginated data
+    offset = (page - 1) * limit
     query = """
     SELECT r.id, r.name, r.cuisine_type, r.description, r.address, r.city, r.state, r.zip_code, r.phone, r.email, r.website, r.hours_of_operation, r.pricing_tier, r.amenities, r.ambiance, r.owner_id, r.created_by, r.created_at, r.updated_at, r.status, r.views,
            GROUP_CONCAT(rp.photo_url) as photos_str,
@@ -75,9 +81,10 @@ def get_restaurants():
     FROM restaurants r
     LEFT JOIN restaurant_photos rp ON r.id = rp.restaurant_id
     GROUP BY r.id
+    ORDER BY r.id ASC
+    LIMIT %s OFFSET %s
     """
-    cursor.execute(query)
-
+    cursor.execute(query, (limit, offset))
     restaurants = cursor.fetchall()
     
     for r in restaurants:
@@ -86,7 +93,13 @@ def get_restaurants():
 
     conn.close()
 
-    return restaurants
+    return {
+        "restaurants": restaurants,
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "total_pages": (total + limit - 1) // limit
+    }
 
 
 @router.get("/restaurants/search")
@@ -95,46 +108,56 @@ def search_restaurants(
     cuisine: str = None,
     city: str = None,
     pricing_tier: str = None,
-    zip_code: str = None
+    zip_code: str = None,
+    page: int = 1,
+    limit: int = 30
 ):
 
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
 
-    query = """
+    base_query = "FROM restaurants r LEFT JOIN restaurant_photos rp ON r.id = rp.restaurant_id WHERE 1=1"
+    params = []
+
+    if name:
+        base_query += " AND r.name LIKE %s"
+        params.append(f"%{name}%")
+
+    if cuisine:
+        base_query += " AND r.cuisine_type LIKE %s"
+        params.append(f"%{cuisine}%")
+
+    if city:
+        base_query += " AND r.city LIKE %s"
+        params.append(f"%{city}%")
+
+    if pricing_tier:
+        base_query += " AND r.price_tier = %s"
+        params.append(pricing_tier)
+
+    if zip_code:
+        base_query += " AND r.address LIKE %s"
+        params.append(f"%{zip_code}%")
+
+    # 1. Get total count for entries matching search
+    # Note: We need a distinct count of restaurants because of the join
+    count_query = f"SELECT COUNT(DISTINCT r.id) as total {base_query}"
+    cursor.execute(count_query, tuple(params))
+    total = cursor.fetchone()['total']
+
+    # 2. Get paginated data
+    offset = (page - 1) * limit
+    data_query = f"""
     SELECT r.id, r.name, r.cuisine_type, r.description, r.address, r.city, r.state, r.zip_code, r.phone, r.email, r.website, r.hours_of_operation, r.pricing_tier, r.amenities, r.ambiance, r.owner_id, r.created_by, r.created_at, r.updated_at, r.status, r.views,
            GROUP_CONCAT(rp.photo_url) as photos_str,
            COALESCE((SELECT AVG(rv.rating) FROM reviews rv WHERE rv.restaurant_id = r.id), 0) as average_rating,
            COALESCE((SELECT COUNT(*) FROM reviews rv WHERE rv.restaurant_id = r.id), 0) as review_count
-    FROM restaurants r
-    LEFT JOIN restaurant_photos rp ON r.id = rp.restaurant_id
-    WHERE 1=1
+    {base_query}
+    GROUP BY r.id
+    ORDER BY r.id ASC
+    LIMIT %s OFFSET %s
     """
-    params = []
-
-    if name:
-        query += " AND r.name LIKE %s"
-        params.append(f"%{name}%")
-
-    if cuisine:
-        query += " AND r.cuisine_type LIKE %s"
-        params.append(f"%{cuisine}%")
-
-    if city:
-        query += " AND r.city LIKE %s"
-        params.append(f"%{city}%")
-
-    if pricing_tier:
-        query += " AND r.price_tier = %s"
-        params.append(pricing_tier)
-
-    if zip_code:
-        query += " AND r.address LIKE %s"
-        params.append(f"%{zip_code}%")
-
-    query += " GROUP BY r.id"
-
-    cursor.execute(query, tuple(params))
+    cursor.execute(data_query, tuple(params + [limit, offset]))
     restaurants = cursor.fetchall()
     
     for r in restaurants:
@@ -143,7 +166,13 @@ def search_restaurants(
 
     conn.close()
 
-    return restaurants
+    return {
+        "restaurants": restaurants,
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "total_pages": (total + limit - 1) // limit
+    }
 
 
 @router.get("/restaurants/{restaurant_id}")
