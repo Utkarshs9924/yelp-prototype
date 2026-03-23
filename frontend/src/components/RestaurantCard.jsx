@@ -14,88 +14,53 @@ export default function RestaurantCard({ restaurant, variant = 'grid', compact }
     photos,
   } = restaurant || {};
 
-  // 🔥 Cuisine-based image pools (multiple per category)
-  const CUISINE_IMAGES = {
-    pizza: [
-      "https://images.unsplash.com/photo-1513104890138-7c749659a591",
-      "https://images.unsplash.com/photo-1548365328-5b849b7d9b7b",
-      "https://images.unsplash.com/photo-1601924582975-7e6b64e3c52f"
-    ],
-    mexican: [
-      "https://images.unsplash.com/photo-1565299585323-38d6b0865b47",
-      "https://images.unsplash.com/photo-1600891964599-f61ba0e24092"
-    ],
-    italian: [
-      "https://images.unsplash.com/photo-1498579150354-977475b7e2b3",
-      "https://images.unsplash.com/photo-1608756687911-aa1599ab3bd9"
-    ],
-    japanese: [
-      "https://images.unsplash.com/photo-1553621042-f6e147245754",
-      "https://images.unsplash.com/photo-1563612116625-3012372fccce"
-    ],
-    sushi: [
-      "https://images.unsplash.com/photo-1579871494447-9811cf80d66c",
-      "https://images.unsplash.com/photo-1553621042-f6e147245754"
-    ],
-    chinese: [
-      "https://images.unsplash.com/photo-1540189549336-e6e99c3679fe",
-      "https://images.unsplash.com/photo-1585032226651-759b368d7246"
-    ],
-    burger: [
-      "https://images.unsplash.com/photo-1568901346375-23c9450c58cd",
-      "https://images.unsplash.com/photo-1550547660-d9450f859349"
-    ],
-    thai: [
-      "https://images.unsplash.com/photo-1559314809-0d155014e29e",
-      "https://images.unsplash.com/photo-1604908176997-125f25cc6f3d"
-    ],
-    indian: [
-      "https://images.unsplash.com/photo-1585937421606-0d5b1ada5004",
-      "https://images.unsplash.com/photo-1601050690597-df0568f70950"
-    ],
-    coffee: [
-      "https://images.unsplash.com/photo-1497935586351-b67a49e012bf",
-      "https://images.unsplash.com/photo-1509042239860-f550ce710b93"
-    ],
-    bakery: [
-      "https://images.unsplash.com/photo-1509440159596-0249088772ff",
-      "https://images.unsplash.com/photo-1608198093002-ad4e005484ec"
-    ],
-    seafood: [
-      "https://images.unsplash.com/photo-1615141982317-08471384e4f1",
-      "https://images.unsplash.com/photo-1559847844-5315695dadae"
-    ],
-    vegan: [
-      "https://images.unsplash.com/photo-1512621776951-a57141f2eefd",
-      "https://images.unsplash.com/photo-1546069901-ba9599a7e63c"
-    ]
+  // 🎯 Verified Cuisine-based image mapping
+  const CUISINE_IMAGE_MAP = {
+    'Pizza': '1513104890138-7c749659a591',
+    'Mexican': '1504674900247-0877df9cc836',
+    'Italian': '1501339847302-ac426a4a7cbb',
+    'Japanese': '1580822184713-fc5400e7fe10',
+    'Sushi': '1579871494447-9811cf80d66c',
+    'Chinese': '1540189549336-e6e99c3679fe',
+    'Burger': '1561758033-d89a9ad46330',
+    'Thai': '1559314809-0d155014e29e',
+    'Indian': '1517248135467-4c7edcad34c4',
+    'American': '1550966871-3ed3cdb5ed0c',
+    'Fast Food': '1561758033-d89a9ad46330',
+    'Coffee': '1495474472287-4d71bcdd2085',
+    'Cafe': '1501339847302-ac426a4a7cbb',
+    'Bakery': '1509440159596-0249088772ff',
+    'Seafood': '1476224203463-9889505c10ad',
+    'Vegan': '1512621776951-a57141f2eefd',
+    'Steakhouse': '1558030006-450675393462',
+    'Bar': '1514362545857-3bc16c4c7d1b',
+    'Grill': '1555939594-58d7cb561ad1',
+    'Pub': '1514362545857-3bc16c4c7d1b'
   };
 
-  // 🎲 Generic fallback images
+  // 🎲 Generic fallback IDs
   const GENERIC_IMAGES = [
-    "https://images.unsplash.com/photo-1504674900247-0877df9cc836",
-    "https://images.unsplash.com/photo-1498654896293-37aacf113fd9",
-    "https://images.unsplash.com/photo-1476224203421-9ac39bcb3327",
-    "https://images.unsplash.com/photo-1467003909585-2f8a72700288"
+    '1546069901-ba9599a7e63c',
+    '1519708227418-c8fd9a32b7a2',
+    '1493770348161-369560ae357d'
   ];
 
-  // 🎲 helper to pick random from array
-  const getRandomFromArray = (arr) => {
-    const idx = Math.floor(Math.random() * arr.length);
-    return `${arr[idx]}?auto=format&fit=crop&w=800&q=80`;
-  };
-
-  // 🧠 smart fallback (cuisine + random)
+  // 🧠 smart fallback logic
   const getCuisineImage = () => {
-    const text = `${cuisine_type || ''} ${name || ''}`.toLowerCase();
+    const type = cuisine_type || '';
+    const nameStr = name || '';
+    const combined = `${type} ${nameStr}`.toLowerCase();
 
-    for (const key of Object.keys(CUISINE_IMAGES)) {
-      if (text.includes(key)) {
-        return getRandomFromArray(CUISINE_IMAGES[key]);
+    // Check mapping
+    for (const [key, id] of Object.entries(CUISINE_IMAGE_MAP)) {
+      if (combined.includes(key.toLowerCase())) {
+        return `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=800&q=80`;
       }
     }
 
-    return getRandomFromArray(GENERIC_IMAGES);
+    // Pick random generic
+    const randomId = GENERIC_IMAGES[Math.floor(Math.random() * GENERIC_IMAGES.length)];
+    return `https://images.unsplash.com/photo-${randomId}?auto=format&fit=crop&w=800&q=80`;
   };
 
   // ✅ final image logic
