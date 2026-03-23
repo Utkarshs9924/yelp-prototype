@@ -28,7 +28,7 @@ export const userAPI = {
 };
 
 export const restaurantAPI = {
-  list: () => api.get('/restaurants'),
+  list: (params) => api.get('/restaurants', { params }),
   search: (params) => api.get('/restaurants/search', { params }),
   get: (id) => api.get(`/restaurants/${id}`),
   create: (data) => api.post('/restaurants', data),
