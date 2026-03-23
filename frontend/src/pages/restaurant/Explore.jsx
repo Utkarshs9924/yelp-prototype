@@ -50,11 +50,11 @@ export default function Explore() {
     setLoading(true);
     try {
       const params = { page: pageNum, limit: 30 };
-      if (search.trim()) {
-        params.name = search.trim();
-      }
+
+      if (search.trim()) params.name = search.trim();
       if (cuisine && cuisine !== 'All Cuisines') params.cuisine = cuisine;
       if (priceRange) params.pricing_tier = priceRange;
+
       if (cityZip.trim()) {
         const val = cityZip.trim();
         if (/^\d+$/.test(val)) params.zip_code = val;
@@ -62,14 +62,10 @@ export default function Explore() {
       }
 
       const { data } = await restaurantAPI.search(params);
-      
-      const results = data?.restaurants || [];
-      const totalCount = data?.total || 0;
-      const pages = data?.total_pages || 1;
-      
-      setRestaurants(results);
-      setTotal(totalCount);
-      setTotalPages(pages);
+
+      setRestaurants(data?.restaurants || []);
+      setTotal(data?.total || 0);
+      setTotalPages(data?.total_pages || 1);
       setPage(pageNum);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to load restaurants');
@@ -97,261 +93,109 @@ export default function Explore() {
     }
   };
 
-  const handleAiSearchSubmit = async (e) => {
-    e.preventDefault();
-    if (!aiSearch.trim()) return;
-    
-    setAiLoading(true);
-    setAiResponse('');
-    try {
-      const { data } = await chatAPI.send({
-        message: aiSearch,
-        conversation_history: []
-      });
-      setAiResponse(data.response);
-      setRestaurants(data.restaurants || []);
-      setTotal(data.restaurants?.length || 0);
-      setTotalPages(1);
-      setPage(1);
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to get AI response');
-    } finally {
-      setAiLoading(false);
-    }
-  };
-
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Hero Section */}
-      <div className="bg-gradient-to-b from-red-600 to-red-700 text-white">
-        <div className="max-w-6xl mx-auto px-4 py-12 sm:py-16">
+
+      {/* HERO */}
+      <div className="bg-gradient-to-b from-red-600 to-red-700 text-white relative pb-20">
+        <div className="max-w-6xl mx-auto px-4 pt-12 sm:pt-16">
+
           <h1 className="text-3xl sm:text-4xl font-bold text-center mb-2">
-            Find the best restaurants
+            Find the Best Restaurants
           </h1>
+
           <p className="text-red-100 text-center mb-8 max-w-xl mx-auto">
             Search by name, cuisine, keywords, city or zip code
           </p>
 
+          {/* Toggle */}
           <div className="flex justify-center gap-4 mb-6">
-            <button 
-              type="button"
-              onClick={() => { setSearchMode('standard'); fetchRestaurants(1); }} 
-              className={`px-5 py-2 rounded-full font-semibold transition-all ${searchMode === 'standard' ? 'bg-white text-red-600 shadow-md' : 'bg-red-700/50 text-white hover:bg-red-600'}`}
+            <button
+              onClick={() => { setSearchMode('standard'); fetchRestaurants(1); }}
+              className={`px-5 py-2 rounded-full font-semibold ${
+                searchMode === 'standard'
+                  ? 'bg-white text-red-600'
+                  : 'bg-red-700/50 text-white'
+              }`}
             >
               Standard Search
             </button>
-            <button 
-              type="button"
-              onClick={() => setSearchMode('ai')} 
-              className={`px-5 py-2 rounded-full font-semibold transition-all ${searchMode === 'ai' ? 'bg-white text-red-600 shadow-md' : 'bg-red-700/50 text-white hover:bg-red-600'}`}
+
+            <button
+              onClick={() => setSearchMode('ai')}
+              className={`px-5 py-2 rounded-full font-semibold ${
+                searchMode === 'ai'
+                  ? 'bg-white text-red-600'
+                  : 'bg-red-700/50 text-white'
+              }`}
             >
               ✨ Ask AI Assistant
             </button>
           </div>
-
-          {searchMode === 'standard' ? (
-            <form onSubmit={handleSearchSubmit} className="max-w-2xl mx-auto">
-              <div className="flex flex-col sm:flex-row gap-3">
-                <div className="flex-1 relative">
-                  <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                  <input
-                    type="text"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Restaurant name, cuisine, keywords..."
-                    className="w-full pl-11 pr-4 py-3 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white/50"
-                  />
-                </div>
-                <div className="flex-1 relative">
-                  <input
-                    type="text"
-                    value={cityZip}
-                    onChange={(e) => setCityZip(e.target.value)}
-                    placeholder="City or zip code"
-                    className="w-full px-4 py-3 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white/50"
-                  />
-                </div>
-                <button
-                  type="submit"
-                  className="px-6 py-3 bg-white text-red-600 font-semibold rounded-lg hover:bg-red-50 transition-colors shadow-md"
-                >
-                  Search
-                </button>
-              </div>
-            </form>
-          ) : (
-            <form onSubmit={handleAiSearchSubmit} className="max-w-2xl mx-auto relative animate-fade-in">
-              <input
-                type="text"
-                value={aiSearch}
-                onChange={(e) => setAiSearch(e.target.value)}
-                placeholder="Ex: 'I'm vegan and want something casual' or 'Romantic italian spot'"
-                className="w-full px-6 py-4 rounded-xl text-gray-900 placeholder-gray-500 text-lg shadow-xl focus:outline-none focus:ring-4 focus:ring-red-300"
-                disabled={aiLoading}
-              />
-              <button
-                type="submit"
-                disabled={aiLoading || !aiSearch.trim()}
-                className="absolute right-2 top-1/2 -translate-y-1/2 px-6 py-2 bg-gradient-to-r from-red-600 to-red-500 text-white rounded-lg hover:from-red-700 hover:to-red-600 disabled:opacity-70 transition-all font-medium shadow-md flex items-center gap-2"
-              >
-                {aiLoading ? 'Thinking...' : 'Ask AI'}
-              </button>
-            </form>
-          )}
         </div>
+
+        {/* SEARCH BAR */}
+        <form onSubmit={handleSearchSubmit} className="absolute left-1/2 -translate-x-1/2 bottom-0 w-full px-4">
+          <div className="max-w-4xl mx-auto bg-white rounded-xl shadow-2xl p-4 flex gap-3">
+
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Restaurant name..."
+              className="flex-1 px-4 py-3 border rounded-lg"
+            />
+
+            <input
+              value={cityZip}
+              onChange={(e) => setCityZip(e.target.value)}
+              placeholder="City or zip"
+              className="flex-1 px-4 py-3 border rounded-lg"
+            />
+
+            <button className="px-6 py-3 bg-red-600 text-white rounded-lg">
+              Search
+            </button>
+
+          </div>
+        </form>
       </div>
-      
 
+      {/* RESULTS */}
+      <div className="max-w-6xl mx-auto px-4 pt-20">
 
-      {/* Filters & Content */}
-      <div className="max-w-6xl mx-auto px-4 py-6">
-        {/* Filter Bar */}
-        {searchMode === 'standard' && (
-          <div className="flex flex-col sm:flex-row gap-4 mb-6 justify-between items-center">
-            <div className="flex gap-4 items-center">
-              <button
-                onClick={() => setShowFilters(!showFilters)}
-                className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg hover:border-red-300 hover:bg-red-50 transition-colors sm:hidden"
-              >
-                <FaFilter size={16} />
-                Filters
-              </button>
+        <div className="text-sm text-gray-500 mb-4">
+          Found {total} restaurants
+        </div>
 
-              <div
-                className={`flex flex-col sm:flex-row gap-4 ${showFilters ? 'flex' : 'hidden sm:flex'}`}
-              >
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-wrap">
-                  <div>
-                    <label className="sr-only">Cuisine</label>
-                    <select
-                      value={cuisine}
-                      onChange={(e) => setCuisine(e.target.value)}
-                      className="px-4 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
-                    >
-                      {CUISINE_OPTIONS.map((c) => (
-                        <option key={c} value={c}>
-                          {c}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-600">Price:</span>
-                    <div className="flex gap-1">
-                      {PRICE_OPTIONS.filter((p) => p.value).map((p) => (
-                        <button
-                          key={p.value}
-                          type="button"
-                          onClick={() => setPriceRange(priceRange === p.value ? '' : p.value)}
-                          className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                            priceRange === p.value
-                              ? 'bg-red-600 text-white'
-                              : 'bg-white border border-gray-300 text-gray-700 hover:border-red-300 hover:bg-red-50'
-                          }`}
-                        >
-                          {p.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            <div className="text-sm text-gray-500">
-              Found {total} restaurants
-            </div>
-          </div>
-        )}
-
-        {/* AI Response Alert */}
-        {searchMode === 'ai' && aiResponse && (
-          <div className="mb-6 animate-fade-in">
-            <div className="bg-blue-50 border border-blue-200 p-5 rounded-xl shadow-sm">
-              <div className="flex items-start gap-4">
-                <span className="text-2xl mt-0.5">✨</span>
-                <p className="text-blue-900 whitespace-pre-wrap leading-relaxed text-lg font-medium">{aiResponse}</p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Restaurant Grid */}
         {loading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[1, 2, 3, 4, 5, 6].map((i) => (
-              <div
-                key={i}
-                className="bg-white rounded-lg shadow overflow-hidden animate-pulse"
-              >
-                <div className="aspect-[4/3] bg-gray-200" />
-                <div className="p-4 space-y-3">
-                  <div className="h-5 bg-gray-200 rounded w-3/4" />
-                  <div className="h-4 bg-gray-200 rounded w-1/2" />
-                  <div className="h-4 bg-gray-200 rounded w-1/3" />
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : restaurants.length === 0 ? (
-          <div className="text-center py-16 bg-white rounded-xl border border-gray-100">
-            <p className="text-gray-500 text-lg">No restaurants found</p>
-            <p className="text-gray-400 text-sm mt-1">
-              Try adjusting your search or filters
-            </p>
-          </div>
+          <div className="text-center py-10">Loading...</div>
         ) : (
           <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
-              {restaurants.map((restaurant) => (
-                <RestaurantCard key={restaurant.id} restaurant={restaurant} />
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
+              {restaurants.map(r => (
+                <RestaurantCard key={r.id} restaurant={r} />
               ))}
             </div>
 
-            {/* Pagination Controls */}
+            {/* PAGINATION */}
             {totalPages > 1 && (
-              <div className="flex justify-center items-center gap-2 py-8 border-t border-gray-100">
-                <button
-                  onClick={() => handlePageChange(page - 1)}
-                  disabled={page === 1}
-                  className="px-4 py-2 border border-gray-300 rounded-lg bg-white disabled:opacity-50 hover:bg-gray-50 transition-colors"
-                >
-                  Previous
-                </button>
-                
-                <div className="flex gap-2 mx-4 overflow-x-auto max-w-[200px] sm:max-w-none no-scrollbar">
-                  {[...Array(totalPages)].map((_, i) => {
-                    const p = i + 1;
-                    // Only show first, last, and pages around current
-                    if (p === 1 || p === totalPages || (p >= page - 2 && p <= page + 2)) {
-                      return (
-                        <button
-                          key={p}
-                          onClick={() => handlePageChange(p)}
-                          className={`w-10 h-10 flex items-center justify-center rounded-lg font-medium transition-all ${
-                            page === p
-                              ? 'bg-red-600 text-white shadow-md'
-                              : 'bg-white border border-gray-300 text-gray-700 hover:border-red-300 hover:bg-red-50'
-                          }`}
-                        >
-                          {p}
-                        </button>
-                      );
-                    }
-                    if (p === 2 || p === totalPages - 1) {
-                      return <span key={p} className="flex items-end pb-2">...</span>;
-                    }
-                    return null;
-                  })}
-                </div>
+              <div className="flex justify-center gap-2">
+                <button onClick={() => handlePageChange(page - 1)}>Prev</button>
 
-                <button
-                  onClick={() => handlePageChange(page + 1)}
-                  disabled={page === totalPages}
-                  className="px-4 py-2 border border-gray-300 rounded-lg bg-white disabled:opacity-50 hover:bg-gray-50 transition-colors"
-                >
-                  Next
-                </button>
+                {[...Array(totalPages)].map((_, i) => {
+                  const p = i + 1;
+                  return (
+                    <button
+                      key={p}
+                      onClick={() => handlePageChange(p)}
+                      className={page === p ? 'font-bold' : ''}
+                    >
+                      {p}
+                    </button>
+                  );
+                })}
+
+                <button onClick={() => handlePageChange(page + 1)}>Next</button>
               </div>
             )}
           </>
