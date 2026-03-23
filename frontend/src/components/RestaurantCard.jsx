@@ -14,44 +14,95 @@ export default function RestaurantCard({ restaurant, variant = 'grid', compact }
     photos,
   } = restaurant || {};
 
-  const CUISINE_IMAGE_MAP = {
-    'Pizza': '1513104890138-7c749659a591',
-    'Mexican': '1565299524944-86dc24727f71',
-    'Italian': '1498579150354-977475b7e2b3',
-    'Japanese': '1553621042-f6e147245754',
-    'Sushi': '1579871494447-9811cf80d66c',
-    'Chinese': '1540189549336-e6e99c3679fe',
-    'Burger': '1568901346375-23c9450c58cd',
-    'Thai': '1559314809-0d155014e29e',
-    'Indian': '1585937421606-0d5b1ada5004',
-    'Coffee': '1497935586351-b67a49e012bf',
-    'Bakery': '1509440159596-0249088772ff',
-    'Seafood': '1615141982317-08471384e4f1',
-    'Vegan': '1512621776951-a57141f2eefd'
+  // 🔥 Cuisine-based image pools (multiple per category)
+  const CUISINE_IMAGES = {
+    pizza: [
+      "https://images.unsplash.com/photo-1513104890138-7c749659a591",
+      "https://images.unsplash.com/photo-1548365328-5b849b7d9b7b",
+      "https://images.unsplash.com/photo-1601924582975-7e6b64e3c52f"
+    ],
+    mexican: [
+      "https://images.unsplash.com/photo-1565299585323-38d6b0865b47",
+      "https://images.unsplash.com/photo-1600891964599-f61ba0e24092"
+    ],
+    italian: [
+      "https://images.unsplash.com/photo-1498579150354-977475b7e2b3",
+      "https://images.unsplash.com/photo-1608756687911-aa1599ab3bd9"
+    ],
+    japanese: [
+      "https://images.unsplash.com/photo-1553621042-f6e147245754",
+      "https://images.unsplash.com/photo-1563612116625-3012372fccce"
+    ],
+    sushi: [
+      "https://images.unsplash.com/photo-1579871494447-9811cf80d66c",
+      "https://images.unsplash.com/photo-1553621042-f6e147245754"
+    ],
+    chinese: [
+      "https://images.unsplash.com/photo-1540189549336-e6e99c3679fe",
+      "https://images.unsplash.com/photo-1585032226651-759b368d7246"
+    ],
+    burger: [
+      "https://images.unsplash.com/photo-1568901346375-23c9450c58cd",
+      "https://images.unsplash.com/photo-1550547660-d9450f859349"
+    ],
+    thai: [
+      "https://images.unsplash.com/photo-1559314809-0d155014e29e",
+      "https://images.unsplash.com/photo-1604908176997-125f25cc6f3d"
+    ],
+    indian: [
+      "https://images.unsplash.com/photo-1585937421606-0d5b1ada5004",
+      "https://images.unsplash.com/photo-1601050690597-df0568f70950"
+    ],
+    coffee: [
+      "https://images.unsplash.com/photo-1497935586351-b67a49e012bf",
+      "https://images.unsplash.com/photo-1509042239860-f550ce710b93"
+    ],
+    bakery: [
+      "https://images.unsplash.com/photo-1509440159596-0249088772ff",
+      "https://images.unsplash.com/photo-1608198093002-ad4e005484ec"
+    ],
+    seafood: [
+      "https://images.unsplash.com/photo-1615141982317-08471384e4f1",
+      "https://images.unsplash.com/photo-1559847844-5315695dadae"
+    ],
+    vegan: [
+      "https://images.unsplash.com/photo-1512621776951-a57141f2eefd",
+      "https://images.unsplash.com/photo-1546069901-ba9599a7e63c"
+    ]
   };
 
+  // 🎲 Generic fallback images
   const GENERIC_IMAGES = [
-    '1414235077428-97116960ac16',
-    '1504674900247-0877df9cc836',
-    '1476224203463-9889505c10ad'
+    "https://images.unsplash.com/photo-1504674900247-0877df9cc836",
+    "https://images.unsplash.com/photo-1498654896293-37aacf113fd9",
+    "https://images.unsplash.com/photo-1476224203421-9ac39bcb3327",
+    "https://images.unsplash.com/photo-1467003909585-2f8a72700288"
   ];
 
-  const getFallbackImage = () => {
-    if (!cuisine_type) return `https://images.unsplash.com/photo-${GENERIC_IMAGES[0]}?auto=format&fit=crop&w=800&q=80`;
-    const cType = cuisine_type.toLowerCase();
-    
-    for (const [key, photoId] of Object.entries(CUISINE_IMAGE_MAP)) {
-      if (cType.includes(key.toLowerCase())) {
-        return `https://images.unsplash.com/photo-${photoId}?auto=format&fit=crop&w=800&q=80`;
-      }
-    }
-    
-    // stable pseudo-random choice from generic based on name length
-    const idx = (name?.length || 0) % GENERIC_IMAGES.length;
-    return `https://images.unsplash.com/photo-${GENERIC_IMAGES[idx]}?auto=format&fit=crop&w=800&q=80`;
+  // 🎲 helper to pick random from array
+  const getRandomFromArray = (arr) => {
+    const idx = Math.floor(Math.random() * arr.length);
+    return `${arr[idx]}?auto=format&fit=crop&w=800&q=80`;
   };
 
-  const imageUrl = photos?.length > 0 ? photos[0] : getFallbackImage();
+  // 🧠 smart fallback (cuisine + random)
+  const getCuisineImage = () => {
+    const text = `${cuisine_type || ''} ${name || ''}`.toLowerCase();
+
+    for (const key of Object.keys(CUISINE_IMAGES)) {
+      if (text.includes(key)) {
+        return getRandomFromArray(CUISINE_IMAGES[key]);
+      }
+    }
+
+    return getRandomFromArray(GENERIC_IMAGES);
+  };
+
+  // ✅ final image logic
+  const imageUrl = photos?.length > 0 
+    ? photos[0] 
+    : getCuisineImage();
+
   const priceDisplay = pricing_tier ? '$'.repeat(Number(pricing_tier) || 1) : null;
 
   const isList = variant === 'list' || compact;
@@ -75,7 +126,7 @@ export default function RestaurantCard({ restaurant, variant = 'grid', compact }
             alt={name}
             className="w-full h-full object-cover"
             onError={(e) => {
-              e.target.src = 'https://placehold.co/96x96/e5e7eb/9ca3af?text=No+Image';
+              e.target.src = getCuisineImage(); // 🔄 fallback if broken
             }}
           />
         </div>
@@ -114,7 +165,7 @@ export default function RestaurantCard({ restaurant, variant = 'grid', compact }
           alt={name}
           className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
           onError={(e) => {
-            e.target.src = 'https://placehold.co/400x300/e5e7eb/9ca3af?text=No+Image';
+            e.target.src = getCuisineImage(); // 🔄 fallback if broken
           }}
         />
       </div>
