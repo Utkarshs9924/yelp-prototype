@@ -33,6 +33,9 @@ const PRICE_OPTIONS = [
 export default function Explore() {
   const [restaurants, setRestaurants] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const [search, setSearch] = useState('');
   const [cuisine, setCuisine] = useState('All Cuisines');
   const [priceRange, setPriceRange] = useState('');
@@ -43,10 +46,10 @@ export default function Explore() {
   const [aiResponse, setAiResponse] = useState('');
   const [showFilters, setShowFilters] = useState(false);
 
-  const fetchRestaurants = useCallback(async () => {
+  const fetchRestaurants = useCallback(async (pageNum = 1) => {
     setLoading(true);
     try {
-      const params = {};
+      const params = { page: pageNum, limit: 30 };
       if (search.trim()) {
         params.name = search.trim();
       }
@@ -59,22 +62,39 @@ export default function Explore() {
       }
 
       const { data } = await restaurantAPI.search(params);
-      setRestaurants(Array.isArray(data) ? data : data?.restaurants ?? data?.results ?? []);
+      
+      const results = data?.restaurants || [];
+      const totalCount = data?.total || 0;
+      const pages = data?.total_pages || 1;
+      
+      setRestaurants(results);
+      setTotal(totalCount);
+      setTotalPages(pages);
+      setPage(pageNum);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to load restaurants');
       setRestaurants([]);
+      setTotal(0);
+      setTotalPages(1);
     } finally {
       setLoading(false);
     }
   }, [search, cuisine, priceRange, cityZip]);
 
   useEffect(() => {
-    fetchRestaurants();
-  }, [fetchRestaurants]);
+    fetchRestaurants(1);
+  }, [cuisine, priceRange, cityZip]);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
-    fetchRestaurants();
+    fetchRestaurants(1);
+  };
+
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && newPage <= totalPages) {
+      fetchRestaurants(newPage);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   };
 
   const handleAiSearchSubmit = async (e) => {
@@ -90,6 +110,9 @@ export default function Explore() {
       });
       setAiResponse(data.response);
       setRestaurants(data.restaurants || []);
+      setTotal(data.restaurants?.length || 0);
+      setTotalPages(1);
+      setPage(1);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to get AI response');
     } finally {
@@ -112,7 +135,7 @@ export default function Explore() {
           <div className="flex justify-center gap-4 mb-6">
             <button 
               type="button"
-              onClick={() => { setSearchMode('standard'); fetchRestaurants(); }} 
+              onClick={() => { setSearchMode('standard'); fetchRestaurants(1); }} 
               className={`px-5 py-2 rounded-full font-semibold transition-all ${searchMode === 'standard' ? 'bg-white text-red-600 shadow-md' : 'bg-red-700/50 text-white hover:bg-red-600'}`}
             >
               Standard Search
@@ -184,53 +207,59 @@ export default function Explore() {
       <div className="max-w-6xl mx-auto px-4 py-6">
         {/* Filter Bar */}
         {searchMode === 'standard' && (
-          <div className="flex flex-col sm:flex-row gap-4 mb-6">
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg hover:border-red-300 hover:bg-red-50 transition-colors sm:hidden"
-            >
-              <FaFilter size={16} />
-              Filters
-            </button>
+          <div className="flex flex-col sm:flex-row gap-4 mb-6 justify-between items-center">
+            <div className="flex gap-4 items-center">
+              <button
+                onClick={() => setShowFilters(!showFilters)}
+                className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg hover:border-red-300 hover:bg-red-50 transition-colors sm:hidden"
+              >
+                <FaFilter size={16} />
+                Filters
+              </button>
 
-            <div
-              className={`flex flex-col sm:flex-row gap-4 ${showFilters ? 'flex' : 'hidden sm:flex'}`}
-            >
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-wrap">
-                <div>
-                  <label className="sr-only">Cuisine</label>
-                  <select
-                    value={cuisine}
-                    onChange={(e) => setCuisine(e.target.value)}
-                    className="px-4 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
-                  >
-                    {CUISINE_OPTIONS.map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-600">Price:</span>
-                  <div className="flex gap-1">
-                    {PRICE_OPTIONS.filter((p) => p.value).map((p) => (
-                      <button
-                        key={p.value}
-                        type="button"
-                        onClick={() => setPriceRange(priceRange === p.value ? '' : p.value)}
-                        className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                          priceRange === p.value
-                            ? 'bg-red-600 text-white'
-                            : 'bg-white border border-gray-300 text-gray-700 hover:border-red-300 hover:bg-red-50'
-                        }`}
-                      >
-                        {p.label}
-                      </button>
-                    ))}
+              <div
+                className={`flex flex-col sm:flex-row gap-4 ${showFilters ? 'flex' : 'hidden sm:flex'}`}
+              >
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-wrap">
+                  <div>
+                    <label className="sr-only">Cuisine</label>
+                    <select
+                      value={cuisine}
+                      onChange={(e) => setCuisine(e.target.value)}
+                      className="px-4 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                    >
+                      {CUISINE_OPTIONS.map((c) => (
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-600">Price:</span>
+                    <div className="flex gap-1">
+                      {PRICE_OPTIONS.filter((p) => p.value).map((p) => (
+                        <button
+                          key={p.value}
+                          type="button"
+                          onClick={() => setPriceRange(priceRange === p.value ? '' : p.value)}
+                          className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                            priceRange === p.value
+                              ? 'bg-red-600 text-white'
+                              : 'bg-white border border-gray-300 text-gray-700 hover:border-red-300 hover:bg-red-50'
+                          }`}
+                        >
+                          {p.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>
+            </div>
+            
+            <div className="text-sm text-gray-500">
+              Found {total} restaurants
             </div>
           </div>
         )}
@@ -272,11 +301,60 @@ export default function Explore() {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {restaurants.map((restaurant) => (
-              <RestaurantCard key={restaurant.id} restaurant={restaurant} />
-            ))}
-          </div>
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
+              {restaurants.map((restaurant) => (
+                <RestaurantCard key={restaurant.id} restaurant={restaurant} />
+              ))}
+            </div>
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="flex justify-center items-center gap-2 py-8 border-t border-gray-100">
+                <button
+                  onClick={() => handlePageChange(page - 1)}
+                  disabled={page === 1}
+                  className="px-4 py-2 border border-gray-300 rounded-lg bg-white disabled:opacity-50 hover:bg-gray-50 transition-colors"
+                >
+                  Previous
+                </button>
+                
+                <div className="flex gap-2 mx-4 overflow-x-auto max-w-[200px] sm:max-w-none no-scrollbar">
+                  {[...Array(totalPages)].map((_, i) => {
+                    const p = i + 1;
+                    // Only show first, last, and pages around current
+                    if (p === 1 || p === totalPages || (p >= page - 2 && p <= page + 2)) {
+                      return (
+                        <button
+                          key={p}
+                          onClick={() => handlePageChange(p)}
+                          className={`w-10 h-10 flex items-center justify-center rounded-lg font-medium transition-all ${
+                            page === p
+                              ? 'bg-red-600 text-white shadow-md'
+                              : 'bg-white border border-gray-300 text-gray-700 hover:border-red-300 hover:bg-red-50'
+                          }`}
+                        >
+                          {p}
+                        </button>
+                      );
+                    }
+                    if (p === 2 || p === totalPages - 1) {
+                      return <span key={p} className="flex items-end pb-2">...</span>;
+                    }
+                    return null;
+                  })}
+                </div>
+
+                <button
+                  onClick={() => handlePageChange(page + 1)}
+                  disabled={page === totalPages}
+                  className="px-4 py-2 border border-gray-300 rounded-lg bg-white disabled:opacity-50 hover:bg-gray-50 transition-colors"
+                >
+                  Next
+                </button>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
