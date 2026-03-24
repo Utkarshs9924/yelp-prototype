@@ -68,7 +68,7 @@ def signup(user: SignupRequest):
             "name": user.name,
             "email": user.email,
             "role": role,
-            "is_approved": is_approved
+            "is_approved": bool(is_approved)
         }
     }
 
@@ -87,15 +87,15 @@ def login(user: LoginRequest):
     conn.close()
 
     if not db_user:
-        return {"message": "User not found"}
+        raise HTTPException(status_code=401, detail="Invalid email or password")
 
     if not bcrypt.checkpw(user.password.encode('utf-8'), db_user["password_hash"].encode('utf-8')):
-        return {"message": "Invalid password"}
+        raise HTTPException(status_code=401, detail="Invalid email or password")
 
     token = create_access_token({
         "sub": str(db_user["id"]), 
         "role": db_user["role"], 
-        "is_approved": db_user["is_approved"]
+        "is_approved": bool(db_user["is_approved"])
     })
     
     return {
@@ -106,7 +106,7 @@ def login(user: LoginRequest):
             "name": db_user["name"],
             "email": db_user["email"],
             "role": db_user["role"],
-            "is_approved": db_user["is_approved"]
+            "is_approved": bool(db_user["is_approved"])
         }
     }
 
