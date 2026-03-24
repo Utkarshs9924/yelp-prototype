@@ -109,6 +109,7 @@ def search_restaurants(
     city: str = None,
     pricing_tier: str = None,
     zip_code: str = None,
+    amenities: str = None, # Added
     page: int = 1,
     limit: int = 30
 ):
@@ -132,12 +133,19 @@ def search_restaurants(
         params.append(f"%{city}%")
 
     if pricing_tier:
-        base_query += " AND r.price_tier = %s"
+        base_query += " AND r.pricing_tier = %s"
         params.append(pricing_tier)
 
     if zip_code:
         base_query += " AND r.zip_code LIKE %s"
         params.append(f"%{zip_code}%")
+
+    if amenities:
+        # Split by comma if multiple requested, otherwise just one
+        amenity_list = [a.strip() for a in amenities.split(',') if a.strip()]
+        for a in amenity_list:
+            base_query += " AND r.amenities LIKE %s"
+            params.append(f"%{a}%")
 
     # 1. Get total count for entries matching search
     # Note: We need a distinct count of restaurants because of the join
@@ -196,11 +204,22 @@ def get_restaurant(restaurant_id: int):
     restaurant = cursor.fetchone()
     
     if restaurant:
-        # Fetch photos with IDs separately for proper delete support
+        # Fetch official restaurant photos
         cursor.execute("SELECT id, photo_url FROM restaurant_photos WHERE restaurant_id = %s", (restaurant_id,))
         photo_rows = cursor.fetchall()
         restaurant['photos'] = [p['photo_url'] for p in photo_rows]
         restaurant['photo_ids'] = [p['id'] for p in photo_rows]
+        
+        # Fetch user review photos with review context
+        cursor.execute("""
+            SELECT p.id, p.photo_url, p.caption, p.review_id, r.comment, r.rating, u.name as user_name
+            FROM photos p
+            JOIN reviews r ON p.review_id = r.id
+            JOIN users u ON p.user_id = u.id
+            WHERE p.restaurant_id = %s
+        """, (restaurant_id,))
+        user_photo_rows = cursor.fetchall()
+        restaurant['user_photos'] = user_photo_rows
 
     conn.close()
 

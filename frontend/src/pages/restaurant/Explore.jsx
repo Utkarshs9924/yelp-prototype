@@ -48,6 +48,9 @@ export default function Explore() {
   const [search, setSearch] = useState('');
   const [cityZip, setCityZip] = useState('');
   const [searchMode, setSearchMode] = useState('standard');
+  const [selectedCuisine, setSelectedCuisine] = useState('');
+  const [selectedPrice, setSelectedPrice] = useState('');
+  const [selectedAmenities, setSelectedAmenities] = useState([]);
 
   const fetchRestaurants = useCallback(async (pageNum = 1) => {
     setLoading(true);
@@ -60,6 +63,10 @@ export default function Explore() {
         if (/^\d+$/.test(val)) params.zip_code = val;
         else params.city = val;
       }
+      if (selectedCuisine) params.cuisine = selectedCuisine;
+      if (selectedPrice) params.pricing_tier = selectedPrice;
+      if (selectedAmenities.length > 0) params.amenities = selectedAmenities.join(',');
+      
       const { data } = await restaurantAPI.search(params);
       setRestaurants(data?.restaurants || []);
       setTotal(data?.total || 0);
@@ -73,7 +80,7 @@ export default function Explore() {
     } finally {
       setLoading(false);
     }
-  }, [search, cityZip]);
+  }, [search, cityZip, selectedCuisine, selectedPrice, selectedAmenities]);
 
   useEffect(() => {
     fetchRestaurants(1);
@@ -307,6 +314,57 @@ export default function Explore() {
           .search-input { width: 100%; border-bottom: 1px solid #eee; }
           .search-divider { display: none; }
           .search-btn { width: 100%; padding: 16px; }
+          .filters-row { flex-direction: column; align-items: stretch; }
+          .price-filters, .amenity-filters { justify-content: center; }
+        }
+
+        .filters-row {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          margin-top: 24px;
+          flex-wrap: wrap;
+          justify-content: center;
+        }
+
+        .filter-select {
+          background: rgba(255,255,255,0.15);
+          border: 1.5px solid rgba(255,255,255,0.3);
+          border-radius: 10px;
+          padding: 8px 16px;
+          color: #fff;
+          font-family: 'DM Sans', sans-serif;
+          font-size: 14px;
+          outline: none;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .filter-select option { color: #333; }
+        .filter-select:hover { background: rgba(255,255,255,0.25); }
+
+        .price-filters, .amenity-filters { display: flex; gap: 8px; flex-wrap: wrap; }
+
+        .price-btn, .amenity-btn {
+          background: rgba(255,255,255,0.1);
+          border: 1.5px solid rgba(255,255,255,0.2);
+          border-radius: 10px;
+          padding: 8px 14px;
+          color: #fff;
+          font-family: 'DM Sans', sans-serif;
+          font-size: 13px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s;
+          white-space: nowrap;
+        }
+
+        .price-btn:hover, .amenity-btn:hover { background: rgba(255,255,255,0.2); }
+        .price-btn.active, .amenity-btn.active {
+          background: #fff;
+          color: #c0392b;
+          border-color: #fff;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.15);
         }
       `}</style>
 
@@ -355,6 +413,56 @@ export default function Explore() {
                 <button type="submit" className="search-btn">Search</button>
               </div>
             </form>
+
+            <div className="filters-row">
+              <select 
+                className="filter-select"
+                value={selectedCuisine}
+                onChange={(e) => { setSelectedCuisine(e.target.value); setPage(1); }}
+              >
+                <option value="">All Cuisines</option>
+                <option value="American">American</option>
+                <option value="Chinese">Chinese</option>
+                <option value="Indian">Indian</option>
+                <option value="Italian">Italian</option>
+                <option value="Japanese">Japanese</option>
+                <option value="Mexican">Mexican</option>
+                <option value="Pizza">Pizza</option>
+                <option value="Seafood">Seafood</option>
+                <option value="Thai">Thai</option>
+                <option value="Steakhouse">Steakhouse</option>
+              </select>
+
+              <div className="price-filters">
+                {['1', '2', '3', '4'].map(tier => (
+                  <button
+                    key={tier}
+                    className={`price-btn ${selectedPrice === tier ? 'active' : ''}`}
+                    onClick={() => { setSelectedPrice(selectedPrice === tier ? '' : tier); setPage(1); }}
+                  >
+                    {'$'.repeat(parseInt(tier))}
+                  </button>
+                ))}
+              </div>
+
+              <div className="amenity-filters">
+                {['Free Wi-Fi', 'Outdoor Seating', 'Dine-in', 'Takeout'].map(amenity => (
+                  <button
+                    key={amenity}
+                    className={`amenity-btn ${selectedAmenities.includes(amenity) ? 'active' : ''}`}
+                    onClick={() => {
+                      const next = selectedAmenities.includes(amenity)
+                        ? selectedAmenities.filter(a => a !== amenity)
+                        : [...selectedAmenities, amenity];
+                      setSelectedAmenities(next);
+                      setPage(1);
+                    }}
+                  >
+                    {amenity}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
 
