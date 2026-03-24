@@ -11,7 +11,11 @@ export function AuthProvider({ children }) {
     try {
       const savedUser = localStorage.getItem('user');
       const savedToken = localStorage.getItem('token');
-      if (savedUser && savedToken && savedToken !== 'undefined') {
+      
+      const isValidUser = savedUser && savedUser !== 'undefined' && savedUser !== 'null';
+      const isValidToken = savedToken && savedToken !== 'undefined' && savedToken !== 'null';
+
+      if (isValidUser && isValidToken) {
         setUser(JSON.parse(savedUser));
         setToken(savedToken);
       } else {
