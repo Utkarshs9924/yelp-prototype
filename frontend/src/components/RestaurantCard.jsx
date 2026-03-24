@@ -15,35 +15,33 @@ export default function RestaurantCard({ restaurant, variant = 'grid', compact }
   } = restaurant || {};
 
   // 🎯 Verified Cuisine-based image mapping
-  const CUISINE_IMAGE_MAP = {
-    'Pizza': '1513104890138-7c749659a591',
-    'Mexican': '1504674900247-0877df9cc836',
-    'Italian': '1501339847302-ac426a4a7cbb',
-    'Japanese': '1580822184713-fc5400e7fe10',
-    'Sushi': '1579871494447-9811cf80d66c',
-    'Chinese': '1540189549336-e6e99c3679fe',
-    'Burger': '1561758033-d89a9ad46330',
-    'Thai': '1559314809-0d155014e29e',
-    'Indian': '1517248135467-4c7edcad34c4',
-    'American': '1550966871-3ed3cdb5ed0c',
-    'Fast Food': '1561758033-d89a9ad46330',
-    'Coffee': '1495474472287-4d71bcdd2085',
-    'Cafe': '1501339847302-ac426a4a7cbb',
-    'Bakery': '1509440159596-0249088772ff',
-    'Seafood': '1476224203463-9889505c10ad',
-    'Vegan': '1512621776951-a57141f2eefd',
-    'Steakhouse': '1558030006-450675393462',
-    'Bar': '1514362545857-3bc16c4c7d1b',
-    'Grill': '1555939594-58d7cb561ad1',
-    'Pub': '1514362545857-3bc16c4c7d1b'
+  const ADLS_BASE = 'https://yelpclonephotos.blob.core.windows.net/restaurant-photos';
+
+  const CUISINE_ASSET_MAP = {
+    'Pizza': 'traditional_pasta_review_photo_3_1774302771097.png',
+    'Mexican': 'tacos_platter_review_photo_4_1774302786282.png',
+    'Italian': 'traditional_pasta_review_photo_3_1774302771097.png',
+    'Japanese': 'sushi_platter_review_photo_2_1774302757257.png',
+    'Sushi': 'sushi_platter_review_photo_2_1774302757257.png',
+    'Chinese': 'dim_sum_review_photo_6_1774302824990.png',
+    'Thai': 'dim_sum_review_photo_6_1774302824990.png',
+    'Burger': 'gourmet_burger_review_photo_1_1774302742382.png',
+    'Thai': 'dim_sum_review_photo_6_1774302824990.png',
+    'Indian': 'indian_curry_review_photo_8_1774302851319.png',
+    'Seafood': 'sushi_platter_review_photo_2_1774302757257.png',
+    'American': 'gourmet_burger_review_photo_1_1774302742382.png',
+    'Fast Food': 'gourmet_burger_review_photo_1_1774302742382.png',
+    'Chicken': 'fried_chicken_review_photo_9_1774302865083.png',
+    'Steakhouse': 'steak_dinner_review_photo_5_1774302802504.png',
+    'Bakery': 'avocado_toast_review_photo_7_1774302837757.png',
+    'Dessert': 'chocolate_lava_cake_review_photo_10_1774302875701.png',
+    'Cafe': 'avocado_toast_review_photo_7_1774302837757.png',
+    'Coffee': 'avocado_toast_review_photo_7_1774302837757.png',
+    'Bar': 'steak_dinner_review_photo_5_1774302802504.png',
+    'Pub': 'steak_dinner_review_photo_5_1774302802504.png'
   };
 
-  // 🎲 Generic fallback IDs
-  const GENERIC_IMAGES = [
-    '1546069901-ba9599a7e63c',
-    '1519708227418-c8fd9a32b7a2',
-    '1493770348161-369560ae357d'
-  ];
+  const ULTIMATE_FALLBACK = `${ADLS_BASE}/gourmet_burger_review_photo_1_1774302742382.png`;
 
   // 🧠 smart fallback logic
   const getCuisineImage = () => {
@@ -52,15 +50,13 @@ export default function RestaurantCard({ restaurant, variant = 'grid', compact }
     const combined = `${type} ${nameStr}`.toLowerCase();
 
     // Check mapping
-    for (const [key, id] of Object.entries(CUISINE_IMAGE_MAP)) {
+    for (const [key, asset] of Object.entries(CUISINE_ASSET_MAP)) {
       if (combined.includes(key.toLowerCase())) {
-        return `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=800&q=80`;
+        return `${ADLS_BASE}/${asset}`;
       }
     }
 
-    // Pick random generic
-    const randomId = GENERIC_IMAGES[Math.floor(Math.random() * GENERIC_IMAGES.length)];
-    return `https://images.unsplash.com/photo-${randomId}?auto=format&fit=crop&w=800&q=80`;
+    return ULTIMATE_FALLBACK;
   };
 
   // ✅ final image logic

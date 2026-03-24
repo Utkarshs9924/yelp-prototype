@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { FaHeart, FaRegHeart, FaMapMarkerAlt, FaPhone, FaEnvelope, FaGlobe, FaEdit, FaTrash, FaUtensils, FaCamera, FaTimesCircle } from 'react-icons/fa';
+import { FaHeart, FaRegHeart, FaMapMarkerAlt, FaPhone, FaEnvelope, FaGlobe, FaEdit, FaTrash, FaUtensils, FaCamera, FaTimesCircle, FaChevronLeft, FaChevronRight } from 'react-icons/fa';
 import { restaurantAPI, reviewAPI, favouriteAPI, photoAPI } from '../../services/api';
 import { useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
@@ -8,45 +8,42 @@ import StarRating from '../../components/StarRating';
 import toast from 'react-hot-toast';
 
 // ✅ Verified IDs — same as RestaurantCard.jsx which already works
-const CUISINE_IMAGE_MAP = {
-  'Pizza': '1513104890138-7c749659a591',
-  'Mexican': '1504674900247-0877df9cc836',
-  'Italian': '1501339847302-ac426a4a7cbb',
-  'Japanese': '1580822184713-fc5400e7fe10',
-  'Sushi': '1579871494447-9811cf80d66c',
-  'Chinese': '1540189549336-e6e99c3679fe',
-  'Burger': '1561758033-d89a9ad46330',
-  'Thai': '1559314809-0d155014e29e',
-  'Indian': '1517248135467-4c7edcad34c4',
-  'American': '1550966871-3ed3cdb5ed0c',
-  'Fast Food': '1561758033-d89a9ad46330',
-  'Coffee': '1495474472287-4d71bcdd2085',
-  'Cafe': '1501339847302-ac426a4a7cbb',
-  'Bakery': '1509440159596-0249088772ff',
-  'Seafood': '1476224203463-9889505c10ad',
-  'Vegan': '1512621776951-a57141f2eefd',
-  'Steakhouse': '1558030006-450675393462',
-  'Bar': '1514362545857-3bc16c4c7d1b',
-  'Grill': '1555939594-58d7cb561ad1',
+const ADLS_BASE = 'https://yelpclonephotos.blob.core.windows.net/restaurant-photos';
+
+const CUISINE_ASSET_MAP = {
+  'Pizza': 'traditional_pasta_review_photo_3_1774302771097.png',
+  'Mexican': 'tacos_platter_review_photo_4_1774302786282.png',
+  'Italian': 'traditional_pasta_review_photo_3_1774302771097.png',
+  'Japanese': 'sushi_platter_review_photo_2_1774302757257.png',
+  'Sushi': 'sushi_platter_review_photo_2_1774302757257.png',
+  'Chinese': 'dim_sum_review_photo_6_1774302824990.png',
+  'Thai': 'dim_sum_review_photo_6_1774302824990.png',
+  'Burger': 'gourmet_burger_review_photo_1_1774302742382.png',
+  'Thai': 'dim_sum_review_photo_6_1774302824990.png',
+  'Indian': 'indian_curry_review_photo_8_1774302851319.png',
+  'Seafood': 'sushi_platter_review_photo_2_1774302757257.png',
+  'American': 'gourmet_burger_review_photo_1_1774302742382.png',
+  'Fast Food': 'gourmet_burger_review_photo_1_1774302742382.png',
+  'Chicken': 'fried_chicken_review_photo_9_1774302865083.png',
+  'Steakhouse': 'steak_dinner_review_photo_5_1774302802504.png',
+  'Bakery': 'avocado_toast_review_photo_7_1774302837757.png',
+  'Dessert': 'chocolate_lava_cake_review_photo_10_1774302875701.png',
+  'Cafe': 'avocado_toast_review_photo_7_1774302837757.png',
+  'Coffee': 'avocado_toast_review_photo_7_1774302837757.png',
+  'Bar': 'steak_dinner_review_photo_5_1774302802504.png',
+  'Pub': 'steak_dinner_review_photo_5_1774302802504.png'
 };
 
-const GENERIC_IMAGES = [
-  '1546069901-ba9599a7e63c',
-  '1519708227418-c8fd9a32b7a2',
-  '1493770348161-369560ae357d',
-];
-
-const ULTIMATE_FALLBACK = `https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=1200&q=80`;
+const ULTIMATE_FALLBACK = `${ADLS_BASE}/gourmet_burger_review_photo_1_1774302742382.png`;
 
 function getFallbackImage(cuisineType, name) {
   const combined = `${cuisineType || ''} ${name || ''}`.toLowerCase();
-  for (const [key, id] of Object.entries(CUISINE_IMAGE_MAP)) {
+  for (const [key, asset] of Object.entries(CUISINE_ASSET_MAP)) {
     if (combined.includes(key.toLowerCase())) {
-      return `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=1200&q=80`;
+      return `${ADLS_BASE}/${asset}`;
     }
   }
-  const idx = (name?.length || 0) % GENERIC_IMAGES.length;
-  return `https://images.unsplash.com/photo-${GENERIC_IMAGES[idx]}?auto=format&fit=crop&w=1200&q=80`;
+  return ULTIMATE_FALLBACK;
 }
 
 export default function RestaurantDetail() {
@@ -65,6 +62,8 @@ export default function RestaurantDetail() {
   const [editingReviewId, setEditingReviewId] = useState(null);
   const [editComment, setEditComment] = useState('');
   const [activeTab, setActiveTab] = useState('menu');
+  const [selectedPhoto, setSelectedPhoto] = useState(null);
+  const [userPhotos, setUserPhotos] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [reviewFile, setReviewFile] = useState(null);
   const fileInputRef = useRef(null);
@@ -72,12 +71,30 @@ export default function RestaurantDetail() {
 
   const canDeletePhotos = user && (user.role === 'admin' || user.role === 'business_owner');
   const userReview = reviews.find((r) => r.user_id === user?.id || r.user?.id === user?.id);
+  
+  const handlePrevPhoto = (e) => {
+    e.stopPropagation();
+    if (!selectedPhoto || userPhotos.length <= 1) return;
+    const currentIndex = userPhotos.findIndex(p => p.photo_url === selectedPhoto.photo_url);
+    const newIndex = (currentIndex - 1 + userPhotos.length) % userPhotos.length;
+    setSelectedPhoto(userPhotos[newIndex]);
+  };
+
+  const handleNextPhoto = (e) => {
+    e.stopPropagation();
+    if (!selectedPhoto || userPhotos.length <= 1) return;
+    const currentIndex = userPhotos.findIndex(p => p.photo_url === selectedPhoto.photo_url);
+    const newIndex = (currentIndex + 1) % userPhotos.length;
+    setSelectedPhoto(userPhotos[newIndex]);
+  };
 
   const fetchRestaurant = useCallback(async () => {
     if (!restaurant_id) return;
     try {
       const { data } = await restaurantAPI.get(restaurant_id);
       setRestaurant(data);
+      // Synchronize user photos for navigation
+      setUserPhotos(data.user_photos || []);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Restaurant not found');
       navigate('/');
@@ -241,6 +258,7 @@ export default function RestaurantDetail() {
   }
 
   const photos = restaurant.photos ?? [];
+  const userPhotosList = restaurant.user_photos ?? [];
   const priceDisplay = restaurant.pricing_tier ? '$'.repeat(Number(restaurant.pricing_tier) || 1) : null;
   const amenities = restaurant.amenities
     ? (typeof restaurant.amenities === 'string'
@@ -255,56 +273,24 @@ export default function RestaurantDetail() {
       <div className="max-w-5xl mx-auto px-4 py-6">
         <header className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-6">
 
-          {/* ── Photo Gallery / Hero ── */}
-          {photos.length > 0 ? (
-            <div className={`grid gap-1 ${photos.length === 1 ? 'grid-cols-1' : photos.length === 2 ? 'grid-cols-2' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'}`}>
-              {photos.slice(0, 6).map((url, i) => (
-                <div key={i} className={`overflow-hidden relative group ${photos.length === 1 ? 'aspect-[16/9]' : 'aspect-[4/3]'}`}>
-                  <img
-                    src={url}
-                    alt={`${restaurant.name} ${i + 1}`}
-                    className="w-full h-full object-cover"
-                    onError={(e) => { e.target.src = heroFallback; }}
-                  />
-                  {canDeletePhotos && (
-                    <button
-                      onClick={async () => {
-                        const photoId = restaurant.photo_ids?.[i];
-                        if (!photoId) { toast.error('Could not find photo ID'); return; }
-                        if (!window.confirm('Delete this photo?')) return;
-                        try {
-                          await photoAPI.delete(photoId);
-                          toast.success('Photo deleted');
-                          fetchRestaurant();
-                        } catch (err) {
-                          toast.error(err.response?.data?.detail || 'Failed to delete photo');
-                        }
-                      }}
-                      className="absolute top-2 right-2 bg-black/60 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
-                      title="Delete photo"
-                    >
-                      <FaTimesCircle size={18} />
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-          ) : (
-            /* ✅ No photos — show cuisine-based fallback with error chain */
-            <div className="aspect-[21/9] overflow-hidden bg-gray-100">
-              <img
-                src={heroFallback}
-                alt={restaurant.name}
-                className="w-full h-full object-cover"
-                onError={(e) => {
-                  // First fallback failed — try a different generic image
-                  if (e.target.src !== ULTIMATE_FALLBACK) {
-                    e.target.src = ULTIMATE_FALLBACK;
-                  }
-                }}
-              />
-            </div>
-          )}
+          {/* ── Hero Image (Simplified) ── */}
+          <div className="aspect-[21/9] overflow-hidden bg-gray-100 relative">
+            <img
+              src={photos.length > 0 ? photos[0] : heroFallback}
+              alt={restaurant.name}
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                if (e.target.src !== ULTIMATE_FALLBACK) {
+                  e.target.src = ULTIMATE_FALLBACK;
+                }
+              }}
+            />
+            {photos.length > 1 && (
+              <div className="absolute bottom-4 right-4 bg-black/60 text-white px-3 py-1.5 rounded-lg text-sm font-medium backdrop-blur-sm">
+                1 / {photos.length} Photos
+              </div>
+            )}
+          </div>
 
           {/* Upload Photo */}
           {user && (
@@ -457,6 +443,14 @@ export default function RestaurantDetail() {
             >
               ⭐ Reviews ({reviews.length})
             </button>
+            <button
+              onClick={() => setActiveTab('photos')}
+              className={`flex-1 flex items-center justify-center gap-2 py-4 px-6 text-sm font-semibold transition-colors ${
+                activeTab === 'photos' ? 'text-red-600 border-b-2 border-red-600 bg-red-50/50' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              <FaCamera size={16} /> Photos ({userPhotosList.length + photos.length})
+            </button>
           </div>
 
           <div className="p-6">
@@ -476,6 +470,128 @@ export default function RestaurantDetail() {
                         <span className="text-red-600 font-bold text-lg whitespace-nowrap">${parseFloat(item.price).toFixed(2)}</span>
                       </div>
                     ))}
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {/* Photos Tab */}
+            {activeTab === 'photos' && (
+              <div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                  {/* Official Photos */}
+                  {photos.map((url, i) => (
+                    <div key={`official-${i}`} className="aspect-square rounded-lg overflow-hidden border border-gray-100 group relative">
+                      <img src={url} alt="Official" className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform" onClick={() => window.open(url, '_blank')} />
+                      {canDeletePhotos && (
+                        <button
+                          onClick={async () => {
+                            const photoId = restaurant.photo_ids?.[i];
+                            if (!photoId) return;
+                            if (!window.confirm('Delete official photo?')) return;
+                            try {
+                              await photoAPI.delete(photoId);
+                              toast.success('Photo deleted');
+                              fetchRestaurant();
+                            } catch (err) {
+                              toast.error('Failed to delete');
+                            }
+                          }}
+                          className="absolute top-1 right-1 bg-black/50 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <FaTimesCircle size={14} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  {/* User Photos */}
+                  {userPhotosList.map((p, i) => (
+                    <div key={`user-${i}`} className="aspect-square rounded-lg overflow-hidden border border-gray-100 group relative">
+                      <img 
+                        src={p.photo_url} 
+                        alt={p.caption} 
+                        className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform" 
+                        onClick={() => setSelectedPhoto(p)} 
+                      />
+                      <div className="absolute bottom-0 left-0 right-0 bg-black/40 text-white text-[10px] p-1 truncate opacity-0 group-hover:opacity-100 transition-opacity">
+                        {p.caption || 'User Photo'}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {photos.length === 0 && userPhotosList.length === 0 && (
+                  <p className="text-gray-500 text-center py-8">No photos yet.</p>
+                )}
+
+                {/* Photo Context Modal */}
+                {selectedPhoto && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setSelectedPhoto(null)}>
+                    <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col md:flex-row shadow-2xl" onClick={e => e.stopPropagation()}>
+                      <div className="flex-1 bg-gray-900 flex items-center justify-center p-2 relative group">
+                        {userPhotosList.length > 1 && (
+                          <>
+                            <button 
+                              onClick={handlePrevPhoto}
+                              className="absolute left-4 p-3 rounded-full bg-white/20 text-white hover:bg-white/40 transition-all z-20 backdrop-blur-md border border-white/30 active:scale-90"
+                              title="Previous Photo"
+                            >
+                              <FaChevronLeft size={24} />
+                            </button>
+                            <button 
+                              onClick={handleNextPhoto}
+                              className="absolute right-4 p-3 rounded-full bg-white/20 text-white hover:bg-white/40 transition-all z-20 backdrop-blur-md border border-white/30 active:scale-90"
+                              title="Next Photo"
+                            >
+                              <FaChevronRight size={24} />
+                            </button>
+                          </>
+                        )}
+                        <img src={selectedPhoto.photo_url} alt="Review" className="max-w-full max-h-[70vh] object-contain" />
+                      </div>
+                      <div className="w-full md:w-80 p-6 flex flex-col border-l border-gray-100 bg-gray-50/50">
+                        <div className="flex justify-between items-start mb-6">
+                            <h3 className="text-xl font-bold text-gray-900">Review Context</h3>
+                            <button onClick={() => setSelectedPhoto(null)} className="text-gray-400 hover:text-gray-600 transition-colors">
+                                <FaTimesCircle size={24} />
+                            </button>
+                        </div>
+                        
+                        {selectedPhoto.user_name ? (
+                          <>
+                            <div className="mb-4">
+                                <span className="text-sm font-bold text-gray-500 uppercase tracking-wider">Posted by</span>
+                                <div className="flex items-center gap-3">
+                                    <p className="text-lg font-semibold text-gray-900">{selectedPhoto.user_name}</p>
+                                    <StarRating rating={selectedPhoto.rating || 0} size="sm" />
+                                </div>
+                            </div>
+                            <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
+                                <span className="text-sm font-bold text-gray-500 uppercase tracking-wider block mb-2">Review</span>
+                                <p className="text-gray-700 italic leading-relaxed">
+                                    "{selectedPhoto.comment || "No comment provided."}"
+                                </p>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="flex-1 flex items-center justify-center">
+                            <p className="text-gray-500 italic">Official restaurant photo</p>
+                          </div>
+                        )}
+                        
+                        <div className="mt-auto pt-6 border-t border-gray-200">
+                           <button 
+                            onClick={() => {
+                                setSelectedPhoto(null);
+                                setActiveTab('reviews');
+                                // Could add scroll logic here if needed
+                            }}
+                            className="w-full bg-red-600 text-white rounded-xl py-3 font-bold hover:bg-red-700 transition-all shadow-md active:scale-95"
+                           >
+                            View All Reviews
+                           </button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
@@ -523,7 +639,10 @@ export default function RestaurantDetail() {
                     <p className="text-gray-500">No reviews yet. Be the first to review!</p>
                   ) : (
                     reviews.map((review) => {
-                      const isOwn = review.user_id === user?.id || review.user?.id === user?.id;
+                      const canManageReview = 
+                        user?.role === 'admin' || 
+                        (user?.role === 'owner' && restaurant?.owner_id === user?.id);
+                      
                       const isEditing = editingReviewId === review.id;
                       return (
                         <article key={review.id} className="p-4 border border-gray-100 rounded-lg hover:bg-gray-50/50">
@@ -542,20 +661,33 @@ export default function RestaurantDetail() {
                                   <span className="font-medium text-gray-900">{review.user?.name ?? review.user_name ?? 'Anonymous'}</span>
                                   <StarRating rating={review.rating ?? 0} size="sm" />
                                 </div>
-                                {isOwn && (
+                                {canManageReview && (
                                   <div className="flex gap-2">
                                     <button onClick={() => { setEditingReviewId(review.id); setEditComment(review.comment ?? ''); }} className="text-gray-500 hover:text-red-600 p-1" title="Edit"><FaEdit size={14} /></button>
                                     <button onClick={() => handleDeleteReview(review.id)} disabled={submitting} className="text-gray-500 hover:text-red-600 p-1" title="Delete"><FaTrash size={14} /></button>
                                   </div>
                                 )}
                               </div>
-                              {review.comment && <p className="mt-1 text-gray-600 text-sm">{review.comment}</p>}
-                              {review.photo_url && (
-                                <div className="mt-3 max-w-[200px] rounded-lg overflow-hidden border border-gray-200">
-                                  <img src={review.photo_url} alt="Review" className="w-full h-auto cursor-pointer hover:scale-105 transition-transform" onClick={() => window.open(review.photo_url, '_blank')} />
+                              {review.photo_url ? (
+                                <div className="mt-3 flex gap-4 bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
+                                  <div className="w-24 h-24 rounded-lg overflow-hidden flex-shrink-0 cursor-pointer hover:opacity-90 transition-opacity"
+                                       onClick={() => setSelectedPhoto({ 
+                                           photo_url: review.photo_url, 
+                                           user_name: review.user?.name ?? review.user_name ?? 'Anonymous', 
+                                           comment: review.comment,
+                                           rating: review.rating
+                                       })}
+                                  >
+                                    <img src={review.photo_url} alt="Review media" className="w-full h-full object-cover" />
+                                  </div>
+                                  <div className="flex-1">
+                                    <p className="text-gray-700 text-sm leading-relaxed">{review.comment}</p>
+                                  </div>
                                 </div>
+                              ) : (
+                                review.comment && <p className="mt-2 text-gray-700 text-sm leading-relaxed">{review.comment}</p>
                               )}
-                              <p className="mt-2 text-xs text-gray-400">{review.created_at ? new Date(review.created_at).toLocaleDateString() : ''}</p>
+                              <p className="mt-3 text-[10px] text-gray-400 font-medium uppercase tracking-wider">{review.created_at ? new Date(review.created_at).toLocaleDateString() : ''}</p>
                             </>
                           )}
                         </article>
