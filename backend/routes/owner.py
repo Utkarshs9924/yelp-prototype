@@ -102,12 +102,12 @@ def submit_new_restaurant(req: RestaurantCreate, user: dict = Depends(require_ro
     conn = get_db_connection()
     cursor = conn.cursor()
     query = """
-    INSERT INTO restaurants (name, cuisine_type, description, address, city, state, zip_code, owner_id, status, created_by)
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'pending', %s)
+    INSERT INTO restaurants (name, cuisine_type, description, address, city, state, zip_code, owner_id, status)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'pending')
     """
     cursor.execute(query, (
         req.name, req.cuisine_type, req.description, req.address, req.city, req.state, req.zip_code, 
-        user["id"], user["id"]
+        user["id"]
     ))
     conn.commit()
     conn.close()
