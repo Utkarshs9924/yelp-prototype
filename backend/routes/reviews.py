@@ -52,6 +52,14 @@ def create_review(review: ReviewCreate, user: dict = Depends(get_current_user)):
     VALUES (%s, %s, %s, %s, %s)
     """
     cursor.execute(query, (uid, review.restaurant_id, review.rating, review.comment, review.photo_url))
+    review_id = cursor.lastrowid
+
+    # Sync with 'photos' table if photo exists
+    if review.photo_url:
+        cursor.execute("""
+            INSERT INTO photos (restaurant_id, review_id, user_id, photo_url, caption)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (review.restaurant_id, review_id, uid, review.photo_url, f"Photo by {user.get('name', 'User')}"))
 
     conn.commit()
     conn.close()
@@ -66,7 +74,7 @@ def get_restaurant_reviews(restaurant_id: int):
 
     query = """
     SELECT reviews.id, reviews.user_id, reviews.rating, reviews.comment,
-           reviews.created_at, users.name as user_name
+           reviews.photo_url, reviews.created_at, users.name as user_name
     FROM reviews
     JOIN users ON reviews.user_id = users.id
     WHERE reviews.restaurant_id = %s
@@ -84,14 +92,24 @@ def update_review(review_id: int, review: ReviewUpdate, user: dict = Depends(get
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
 
-    cursor.execute("SELECT user_id FROM reviews WHERE id = %s", (review_id,))
+    # Check if review exists
+    cursor.execute("SELECT user_id, restaurant_id FROM reviews WHERE id = %s", (review_id,))
     existing = cursor.fetchone()
     if not existing:
         conn.close()
         raise HTTPException(status_code=404, detail="Review not found")
-    if existing["user_id"] != user["id"]:
+    
+    # Check authorization: Admin or Restaurant Owner
+    is_admin = user.get("role") == "admin"
+    
+    # Check if user is the approved owner of this specific restaurant
+    cursor.execute("SELECT owner_id FROM restaurants WHERE id = %s", (existing["restaurant_id"],))
+    restaurant = cursor.fetchone()
+    is_owner = user.get("role") == "owner" and restaurant and restaurant["owner_id"] == user["id"]
+
+    if not (is_admin or is_owner):
         conn.close()
-        raise HTTPException(status_code=403, detail="You can only edit your own reviews")
+        raise HTTPException(status_code=403, detail="Only admins and restaurant owners can edit reviews")
 
     updates = []
     params = []
@@ -120,14 +138,24 @@ def delete_review(review_id: int, user: dict = Depends(get_current_user)):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
 
-    cursor.execute("SELECT user_id FROM reviews WHERE id = %s", (review_id,))
+    # Check if review exists
+    cursor.execute("SELECT user_id, restaurant_id FROM reviews WHERE id = %s", (review_id,))
     existing = cursor.fetchone()
     if not existing:
         conn.close()
         raise HTTPException(status_code=404, detail="Review not found")
-    if existing["user_id"] != user["id"]:
+    
+    # Check authorization: Admin or Restaurant Owner
+    is_admin = user.get("role") == "admin"
+    
+    # Check if user is the approved owner of this specific restaurant
+    cursor.execute("SELECT owner_id FROM restaurants WHERE id = %s", (existing["restaurant_id"],))
+    restaurant = cursor.fetchone()
+    is_owner = user.get("role") == "owner" and restaurant and restaurant["owner_id"] == user["id"]
+
+    if not (is_admin or is_owner):
         conn.close()
-        raise HTTPException(status_code=403, detail="You can only delete your own reviews")
+        raise HTTPException(status_code=403, detail="Only admins and restaurant owners can delete reviews")
 
     cursor.execute("DELETE FROM reviews WHERE id = %s", (review_id,))
     conn.commit()
