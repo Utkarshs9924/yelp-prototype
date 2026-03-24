@@ -55,7 +55,7 @@ export default function Signup() {
         payload.restaurant_location = form.restaurant_location;
       }
       const { data } = await authAPI.signup(payload);
-      login(data.access_token, data.user);
+      login(data.token, data.user);
       toast.success('Account created successfully!');
       navigate('/');
     } catch (err) {

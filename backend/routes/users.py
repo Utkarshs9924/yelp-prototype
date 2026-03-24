@@ -35,7 +35,13 @@ class UserProfileUpdate(BaseModel):
 def signup(user: SignupRequest):
 
     conn = get_db_connection()
-    cursor = conn.cursor()
+    cursor = conn.cursor(dictionary=True)
+
+    # Check if email already exists
+    cursor.execute("SELECT id FROM users WHERE email = %s", (user.email,))
+    if cursor.fetchone():
+        conn.close()
+        raise HTTPException(status_code=400, detail="Email already registered")
 
     hashed_password = bcrypt.hashpw(user.password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
     role = user.role if user.role in ["user", "owner"] else "user"
@@ -43,11 +49,29 @@ def signup(user: SignupRequest):
 
     query = "INSERT INTO users (name, email, password_hash, role, is_approved) VALUES (%s, %s, %s, %s, %s)"
     cursor.execute(query, (user.name, user.email, hashed_password, role, is_approved))
+    new_id = cursor.lastrowid
 
     conn.commit()
     conn.close()
 
-    return {"message": "User created successfully"}
+    token = create_access_token({
+        "sub": str(new_id),
+        "role": role,
+        "is_approved": is_approved
+    })
+
+    return {
+        "message": "User created successfully",
+        "token": token,
+        "user": {
+            "id": new_id,
+            "name": user.name,
+            "email": user.email,
+            "role": role,
+            "is_approved": is_approved
+        }
+    }
+
 
 
 @router.post("/login")
