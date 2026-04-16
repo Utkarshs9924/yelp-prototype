@@ -641,7 +641,8 @@ export default function RestaurantDetail() {
                     reviews.map((review) => {
                       const canManageReview = 
                         user?.role === 'admin' || 
-                        (user?.role === 'owner' && restaurant?.owner_id === user?.id);
+                        (user?.role === 'owner' && restaurant?.owner_id === user?.id) ||
+                        (user?.id === review.user_id);
                       
                       const isEditing = editingReviewId === review.id;
                       return (
