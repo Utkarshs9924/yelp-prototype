@@ -99,17 +99,20 @@ def update_review(review_id: int, review: ReviewUpdate, user: dict = Depends(get
         conn.close()
         raise HTTPException(status_code=404, detail="Review not found")
     
-    # Check authorization: Admin or Restaurant Owner
+    # Check authorization: Admin, Restaurant Owner, or Author
     is_admin = user.get("role") == "admin"
     
     # Check if user is the approved owner of this specific restaurant
     cursor.execute("SELECT owner_id FROM restaurants WHERE id = %s", (existing["restaurant_id"],))
     restaurant = cursor.fetchone()
     is_owner = user.get("role") == "owner" and restaurant and restaurant["owner_id"] == user["id"]
+    
+    # Check if user is the author of the review
+    is_author = existing["user_id"] == user["id"]
 
-    if not (is_admin or is_owner):
+    if not (is_admin or is_owner or is_author):
         conn.close()
-        raise HTTPException(status_code=403, detail="Only admins and restaurant owners can edit reviews")
+        raise HTTPException(status_code=403, detail="Only authors, admins, and restaurant owners can edit reviews")
 
     updates = []
     params = []
@@ -145,7 +148,7 @@ def delete_review(review_id: int, user: dict = Depends(get_current_user)):
         conn.close()
         raise HTTPException(status_code=404, detail="Review not found")
     
-    # Check authorization: Admin or Restaurant Owner
+    # Check authorization: Admin, Restaurant Owner, or Author
     is_admin = user.get("role") == "admin"
     
     # Check if user is the approved owner of this specific restaurant
@@ -153,9 +156,12 @@ def delete_review(review_id: int, user: dict = Depends(get_current_user)):
     restaurant = cursor.fetchone()
     is_owner = user.get("role") == "owner" and restaurant and restaurant["owner_id"] == user["id"]
 
-    if not (is_admin or is_owner):
+    # Check if user is the author of the review
+    is_author = existing["user_id"] == user["id"]
+
+    if not (is_admin or is_owner or is_author):
         conn.close()
-        raise HTTPException(status_code=403, detail="Only admins and restaurant owners can delete reviews")
+        raise HTTPException(status_code=403, detail="Only authors, admins, and restaurant owners can delete reviews")
 
     cursor.execute("DELETE FROM reviews WHERE id = %s", (review_id,))
     conn.commit()
