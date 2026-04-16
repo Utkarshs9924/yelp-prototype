@@ -1,0 +1,139 @@
+version: '3.8'
+
+services:
+  # Zookeeper - required for Kafka
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    networks:
+      - yelp-network
+
+  # Kafka broker
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    networks:
+      - yelp-network
+
+  # User API Service (Producer)
+  user-api:
+    build:
+      context: .
+      dockerfile: services/user-api/Dockerfile
+    ports:
+      - "8001:8001"
+    environment:
+      - MONGO_URI=mongodb+srv://akashkumarsenthilkumar_db_user:mTnLH54vQAmmNjir@yelp.wvxiqvo.mongodb.net/?retryWrites=true&w=majority&appName=yelp
+      - DB_NAME=yelp_db
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - JWT_SECRET=akash_yelp_lab_secret_key_2024_!@#
+    depends_on:
+      - kafka
+    networks:
+      - yelp-network
+
+  # User Worker Service (Consumer)
+  user-worker:
+    build:
+      context: .
+      dockerfile: services/user-worker/Dockerfile
+    environment:
+      - MONGO_URI=mongodb+srv://akashkumarsenthilkumar_db_user:mTnLH54vQAmmNjir@yelp.wvxiqvo.mongodb.net/?retryWrites=true&w=majority&appName=yelp
+      - DB_NAME=yelp_db
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+    depends_on:
+      - kafka
+    networks:
+      - yelp-network
+
+  # Restaurant API Service (Producer)
+  restaurant-api:
+    build:
+      context: .
+      dockerfile: services/restaurant-api/Dockerfile
+    ports:
+      - "8002:8002"
+    environment:
+      - MONGO_URI=mongodb+srv://akashkumarsenthilkumar_db_user:mTnLH54vQAmmNjir@yelp.wvxiqvo.mongodb.net/?retryWrites=true&w=majority&appName=yelp
+      - DB_NAME=yelp_db
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+    depends_on:
+      - kafka
+    networks:
+      - yelp-network
+
+  # Restaurant Worker Service (Consumer)
+  restaurant-worker:
+    build:
+      context: .
+      dockerfile: services/restaurant-worker/Dockerfile
+    environment:
+      - MONGO_URI=mongodb+srv://akashkumarsenthilkumar_db_user:mTnLH54vQAmmNjir@yelp.wvxiqvo.mongodb.net/?retryWrites=true&w=majority&appName=yelp
+      - DB_NAME=yelp_db
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+    depends_on:
+      - kafka
+    networks:
+      - yelp-network
+
+  # Review API Service (Producer)
+  review-api:
+    build:
+      context: .
+      dockerfile: services/review-api/Dockerfile
+    ports:
+      - "8003:8003"
+    environment:
+      - MONGO_URI=mongodb+srv://akashkumarsenthilkumar_db_user:mTnLH54vQAmmNjir@yelp.wvxiqvo.mongodb.net/?retryWrites=true&w=majority&appName=yelp
+      - DB_NAME=yelp_db
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+    depends_on:
+      - kafka
+    networks:
+      - yelp-network
+
+  # Review Worker Service (Consumer)
+  review-worker:
+    build:
+      context: .
+      dockerfile: services/review-worker/Dockerfile
+    environment:
+      - MONGO_URI=mongodb+srv://akashkumarsenthilkumar_db_user:mTnLH54vQAmmNjir@yelp.wvxiqvo.mongodb.net/?retryWrites=true&w=majority&appName=yelp
+      - DB_NAME=yelp_db
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+    depends_on:
+      - kafka
+    networks:
+      - yelp-network
+
+  # Frontend (React + Vite)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "5173:80"
+    depends_on:
+      - user-api
+      - restaurant-api
+      - review-api
+    networks:
+      - yelp-network
+
+networks:
+  yelp-network:
+    driver: bridge
