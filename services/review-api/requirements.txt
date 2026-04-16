@@ -1,0 +1,6 @@
+fastapi==0.115.0
+uvicorn==0.32.0
+pydantic==2.10.1
+pymongo==4.16.0
+dnspython==2.7.0
+kafka-python==2.3.1
