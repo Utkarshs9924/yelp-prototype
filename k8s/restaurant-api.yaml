@@ -1,0 +1,45 @@
+# Restaurant API Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: restaurant-api
+  labels:
+    app: restaurant-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: restaurant-api
+  template:
+    metadata:
+      labels:
+        app: restaurant-api
+    spec:
+      containers:
+      - name: restaurant-api
+        image: 149410638858.dkr.ecr.us-east-1.amazonaws.com/yelp-restaurant-api:latest
+        ports:
+        - containerPort: 8002
+        envFrom:
+        - configMapRef:
+            name: app-config
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+---
+# Restaurant API Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: restaurant-api
+spec:
+  selector:
+    app: restaurant-api
+  ports:
+  - port: 8002
+    targetPort: 8002
+  type: LoadBalancer
