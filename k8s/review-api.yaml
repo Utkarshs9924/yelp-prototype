@@ -1,0 +1,45 @@
+# Review API Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: review-api
+  labels:
+    app: review-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: review-api
+  template:
+    metadata:
+      labels:
+        app: review-api
+    spec:
+      containers:
+      - name: review-api
+        image: 149410638858.dkr.ecr.us-east-1.amazonaws.com/yelp-review-api:latest
+        ports:
+        - containerPort: 8003
+        envFrom:
+        - configMapRef:
+            name: app-config
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+---
+# Review API Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: review-api
+spec:
+  selector:
+    app: review-api
+  ports:
+  - port: 8003
+    targetPort: 8003
+  type: LoadBalancer
