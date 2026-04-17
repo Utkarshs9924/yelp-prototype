@@ -1,0 +1,30 @@
+# User Worker Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-worker
+  labels:
+    app: user-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: user-worker
+  template:
+    metadata:
+      labels:
+        app: user-worker
+    spec:
+      containers:
+      - name: user-worker
+        image: 149410638858.dkr.ecr.us-east-1.amazonaws.com/yelp-user-worker:latest
+        envFrom:
+        - configMapRef:
+            name: app-config
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "250m"
