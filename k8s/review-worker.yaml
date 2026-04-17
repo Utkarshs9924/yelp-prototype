@@ -1,0 +1,30 @@
+# Review Worker Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: review-worker
+  labels:
+    app: review-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: review-worker
+  template:
+    metadata:
+      labels:
+        app: review-worker
+    spec:
+      containers:
+      - name: review-worker
+        image: 149410638858.dkr.ecr.us-east-1.amazonaws.com/yelp-review-worker:latest
+        envFrom:
+        - configMapRef:
+            name: app-config
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "250m"

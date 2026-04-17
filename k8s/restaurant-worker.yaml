@@ -1,0 +1,30 @@
+# Restaurant Worker Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: restaurant-worker
+  labels:
+    app: restaurant-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: restaurant-worker
+  template:
+    metadata:
+      labels:
+        app: restaurant-worker
+    spec:
+      containers:
+      - name: restaurant-worker
+        image: 149410638858.dkr.ecr.us-east-1.amazonaws.com/yelp-restaurant-worker:latest
+        envFrom:
+        - configMapRef:
+            name: app-config
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "250m"
