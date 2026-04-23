@@ -41,10 +41,7 @@ MYSQL_CONFIG = {
 }
 
 # ── MongoDB config ────────────────────────────────────────────────────────────
-MONGO_URI = os.getenv(
-    "MONGO_URI",
-    "mongodb+srv://akashkumarsenthilkumar_db_user:mTnLH54vQAmmNjir@yelp.wvxiqvo.mongodb.net/?retryWrites=true&w=majority&appName=yelp"
-)
+MONGO_URI = os.getenv("MONGO_URI")
 MONGO_DB_NAME = os.getenv("MONGO_DB_NAME", "yelp_db")
 
 
