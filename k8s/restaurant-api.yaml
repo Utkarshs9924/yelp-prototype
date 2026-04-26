@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: restaurant-api
-        image: 149410638858.dkr.ecr.us-east-1.amazonaws.com/yelp-restaurant-api:latest
+        image: 425449348496.dkr.ecr.us-east-2.amazonaws.com/restaurant-api:latest
         ports:
         - containerPort: 8002
         envFrom:

@@ -26,3 +26,4 @@ dist/
 
 # Uploads
 uploads/
+extra_mock_data.sql

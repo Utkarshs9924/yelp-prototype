@@ -185,10 +185,11 @@ def login(user: LoginRequest):
         if not db_user:
             raise HTTPException(status_code=401, detail="Invalid email or password")
         
-        # Verify password
-        if not bcrypt.checkpw(
+        # Verify password - handle both field names (migration used 'password', signup uses 'password_hash')
+        stored_hash = db_user.get("password_hash") or db_user.get("password")
+        if not stored_hash or not bcrypt.checkpw(
             user.password.encode('utf-8'),
-            db_user["password_hash"].encode('utf-8')
+            stored_hash.encode('utf-8')
         ):
             raise HTTPException(status_code=401, detail="Invalid email or password")
         
