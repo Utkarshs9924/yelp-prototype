@@ -1,0 +1,13 @@
+FROM python:3.9-slim
+WORKDIR /app
+# Copy common library
+COPY common/ /app/common/
+# Copy service code
+COPY services/owner-api/app/ /app/
+COPY services/owner-api/requirements.txt /app/
+# Install dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+# Expose port
+EXPOSE 8004
+# Run the service
+CMD ["python", "main.py"]

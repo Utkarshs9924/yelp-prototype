@@ -132,6 +132,23 @@ services:
     networks:
       - yelp-network
 
+  # Owner API Service (Producer)
+  owner-api:
+    build:
+      context: .
+      dockerfile: services/owner-api/Dockerfile
+    ports:
+      - "8011:8004"
+    environment:
+      - MONGO_URI=mongodb+srv://akashkumarsenthilkumar_db_user:mTnLH54vQAmmNjir@yelp.wvxiqvo.mongodb.net/?retryWrites=true&w=majority&appName=yelp
+      - DB_NAME=yelp_db
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - JWT_SECRET=akash_yelp_lab_secret_key_2024_!@#
+    depends_on:
+      - kafka
+    networks:
+      - yelp-network
+
 networks:
   yelp-network:
     driver: bridge
