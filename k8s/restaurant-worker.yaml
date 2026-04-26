@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: restaurant-worker
-        image: 149410638858.dkr.ecr.us-east-1.amazonaws.com/yelp-restaurant-worker:latest
+        image: 425449348496.dkr.ecr.us-east-2.amazonaws.com/restaurant-worker:latest
         envFrom:
         - configMapRef:
             name: app-config
