@@ -3,8 +3,8 @@ import uuid
 import boto3
 from fastapi import HTTPException
 
-# This utility was originally for Azure but has been migrated to AWS S3
 def get_s3_client():
+    # Uses local credentials (like ~/.aws/credentials) or env vars
     return boto3.client(
         's3',
         region_name=os.getenv("AWS_REGION", "us-east-1")
@@ -13,10 +13,9 @@ def get_s3_client():
 def get_bucket_name():
     return os.getenv("S3_BUCKET_NAME", "yelp-restaurant-photos-akash-lab2")
 
-async def upload_to_blob(file_contents: bytes, file_name: str, content_type: str, folder: str = "") -> str:
+async def upload_to_s3(file_contents: bytes, file_name: str, content_type: str, folder: str = "") -> str:
     """
     Uploads a file to AWS S3 and returns the public URL.
-    (Kept name 'upload_to_blob' for compatibility with existing routes)
     """
     try:
         s3 = get_s3_client()
@@ -40,10 +39,9 @@ async def upload_to_blob(file_contents: bytes, file_name: str, content_type: str
         print(f"FAILED S3 Upload Utility: {e}")
         raise HTTPException(status_code=500, detail=f"S3 Storage error: {str(e)}")
 
-async def delete_from_blob(photo_url: str):
+async def delete_from_s3(photo_url: str):
     """
     Deletes an object from S3 based on its public URL.
-    (Kept name 'delete_from_blob' for compatibility with existing routes)
     """
     try:
         s3 = get_s3_client()
