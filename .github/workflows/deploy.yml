@@ -23,9 +23,8 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          # Debugging: show if host is reachable
-          ping -c 1 ${{ secrets.EC2_HOST }} || echo "Host not pingable"
-          ssh-keyscan -v -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+          # We skip ssh-keyscan because it's timing out in some environments.
+          # We use -o StrictHostKeyChecking=no in the rsync/ssh steps instead.
 
       - name: Copy project files to EC2
         run: |
