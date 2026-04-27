@@ -68,8 +68,9 @@ export default function Explore() {
       if (selectedAmenities.length > 0) params.amenities = selectedAmenities.join(',');
       
       const { data } = await restaurantAPI.search(params);
-      setRestaurants(data?.restaurants || []);
-      setTotal(data?.total || 0);
+      const list = data?.restaurants || [];
+      setRestaurants(list);
+      setTotal(data?.total || list.length);
       setTotalPages(data?.total_pages || 1);
       setPage(pageNum);
     } catch (err) {
