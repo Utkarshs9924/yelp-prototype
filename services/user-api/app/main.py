@@ -132,19 +132,22 @@ def signup(user: SignupRequest):
         result = users.insert_one(user_doc)
         user_id = str(result.inserted_id)
         
-        # Publish event to Kafka
-        producer = get_producer()
-        producer.publish_event(
-            topic="user.created",
-            event={
-                "user_id": user_id,
-                "name": user.name,
-                "email": user.email,
-                "role": role,
-                "timestamp": datetime.utcnow().isoformat()
-            },
-            key=user_id
-        )
+        # Publish event to Kafka (non-blocking)
+        try:
+            producer = get_producer()
+            producer.publish_event(
+                topic="user.created",
+                event={
+                    "user_id": user_id,
+                    "name": user.name,
+                    "email": user.email,
+                    "role": role,
+                    "timestamp": datetime.utcnow().isoformat()
+                },
+                key=user_id
+            )
+        except Exception as kafka_err:
+            logger.warning(f"⚠️ Kafka unavailable, skipping event: {kafka_err}")
         
         # Create JWT token
         token = create_access_token({
@@ -185,7 +188,7 @@ def login(user: LoginRequest):
         if not db_user:
             raise HTTPException(status_code=401, detail="Invalid email or password")
         
-        # Verify password - handle both field names (migration used 'password', signup uses 'password_hash')
+        # Verify password
         stored_hash = db_user.get("password_hash") or db_user.get("password")
         if not stored_hash or not bcrypt.checkpw(
             user.password.encode('utf-8'),
@@ -200,17 +203,20 @@ def login(user: LoginRequest):
             "is_approved": db_user.get("is_approved", True)
         })
         
-        # Publish login event
-        producer = get_producer()
-        producer.publish_event(
-            topic="user.login",
-            event={
-                "user_id": str(db_user["_id"]),
-                "email": user.email,
-                "timestamp": datetime.utcnow().isoformat()
-            },
-            key=str(db_user["_id"])
-        )
+        # Publish login event (non-blocking)
+        try:
+            producer = get_producer()
+            producer.publish_event(
+                topic="user.login",
+                event={
+                    "user_id": str(db_user["_id"]),
+                    "email": user.email,
+                    "timestamp": datetime.utcnow().isoformat()
+                },
+                key=str(db_user["_id"])
+            )
+        except Exception as kafka_err:
+            logger.warning(f"⚠️ Kafka unavailable, skipping event: {kafka_err}")
         
         logger.info(f"✅ User logged in: {user.email}")
         
@@ -243,9 +249,8 @@ def get_user(user_id: str):
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
         
-        # Convert ObjectId to string
         user["id"] = str(user.pop("_id"))
-        user.pop("password_hash", None)  # Remove password hash
+        user.pop("password_hash", None)
         
         return user
         
@@ -260,7 +265,6 @@ def update_user(user_id: str, update: UserProfileUpdate):
     try:
         users = get_users_collection()
         
-        # Update user
         result = users.update_one(
             {"_id": ObjectId(user_id)},
             {"$set": {
@@ -278,19 +282,22 @@ def update_user(user_id: str, update: UserProfileUpdate):
         if result.matched_count == 0:
             raise HTTPException(status_code=404, detail="User not found")
         
-        # Publish event to Kafka
-        producer = get_producer()
-        producer.publish_event(
-            topic="user.updated",
-            event={
-                "user_id": user_id,
-                "name": update.name,
-                "city": update.city,
-                "country": update.country,
-                "timestamp": datetime.utcnow().isoformat()
-            },
-            key=user_id
-        )
+        # Publish event to Kafka (non-blocking)
+        try:
+            producer = get_producer()
+            producer.publish_event(
+                topic="user.updated",
+                event={
+                    "user_id": user_id,
+                    "name": update.name,
+                    "city": update.city,
+                    "country": update.country,
+                    "timestamp": datetime.utcnow().isoformat()
+                },
+                key=user_id
+            )
+        except Exception as kafka_err:
+            logger.warning(f"⚠️ Kafka unavailable, skipping event: {kafka_err}")
         
         logger.info(f"✅ User updated: {user_id}")
         
