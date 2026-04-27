@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: user-api
-        image: 425449348496.dkr.ecr.us-east-2.amazonaws.com/user-api:latest
+        image: 256056996949.dkr.ecr.us-east-2.amazonaws.com/user-api:latest
         ports:
         - containerPort: 8001
         envFrom:

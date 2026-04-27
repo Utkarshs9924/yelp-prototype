@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: review-worker
-        image: 425449348496.dkr.ecr.us-east-2.amazonaws.com/review-worker:latest
+        image: 256056996949.dkr.ecr.us-east-2.amazonaws.com/review-worker:latest
         envFrom:
         - configMapRef:
             name: app-config
