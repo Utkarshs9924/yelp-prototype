@@ -35,10 +35,22 @@ jobs:
 
       - name: Create env file and deploy
         run: |
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+          ssh -i ~/.ssh/deploy_key \
+            -o StrictHostKeyChecking=no \
+            -o ServerAliveInterval=60 \
+            -o ServerAliveCountMax=10 \
             ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'DEPLOY'
 
           cd ~/yelp-prototype
+
+          # Ensure swap file exists to prevent OOM during build
+          if [ ! -f /swapfile ]; then
+            sudo fallocate -l 2G /swapfile
+            sudo chmod 600 /swapfile
+            sudo mkswap /swapfile
+            sudo swapon /swapfile
+            echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+          fi
 
           # Write production env file from github secrets
           cat > .env.production << EOF
@@ -52,12 +64,13 @@ jobs:
           S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }}
           EOF
 
-          # Build and start all services
-          docker compose --env-file .env.production up -d --build
+          # Build and start all services (limited to 1 build at a time to save RAM)
+          sudo docker compose --env-file .env.production build --parallel 1
+          sudo docker compose --env-file .env.production up -d
 
           # Wait a moment then show status
           sleep 10
-          docker compose ps
+          sudo docker compose ps
 
           DEPLOY
 
