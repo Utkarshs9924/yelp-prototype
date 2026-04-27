@@ -35,10 +35,10 @@ services:
     ports:
       - "8008:8001"
     environment:
-      - MONGO_URI=mongodb+srv://akashkumarsenthilkumar_db_user:mTnLH54vQAmmNjir@yelp.wvxiqvo.mongodb.net/?retryWrites=true&w=majority&appName=yelp
-      - DB_NAME=yelp_db
+      - MONGO_URI=${MONGO_URI}
+      - DB_NAME=${DB_NAME}
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
-      - JWT_SECRET=akash_yelp_lab_secret_key_2024_!@#
+      - JWT_SECRET=${JWT_SECRET}
     depends_on:
       - kafka
     networks:
@@ -50,8 +50,8 @@ services:
       context: .
       dockerfile: services/user-worker/Dockerfile
     environment:
-      - MONGO_URI=mongodb+srv://akashkumarsenthilkumar_db_user:mTnLH54vQAmmNjir@yelp.wvxiqvo.mongodb.net/?retryWrites=true&w=majority&appName=yelp
-      - DB_NAME=yelp_db
+      - MONGO_URI=${MONGO_URI}
+      - DB_NAME=${DB_NAME}
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
     depends_on:
       - kafka
@@ -66,8 +66,8 @@ services:
     ports:
       - "8009:8002"
     environment:
-      - MONGO_URI=mongodb+srv://akashkumarsenthilkumar_db_user:mTnLH54vQAmmNjir@yelp.wvxiqvo.mongodb.net/?retryWrites=true&w=majority&appName=yelp
-      - DB_NAME=yelp_db
+      - MONGO_URI=${MONGO_URI}
+      - DB_NAME=${DB_NAME}
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
     depends_on:
       - kafka
@@ -80,8 +80,8 @@ services:
       context: .
       dockerfile: services/restaurant-worker/Dockerfile
     environment:
-      - MONGO_URI=mongodb+srv://akashkumarsenthilkumar_db_user:mTnLH54vQAmmNjir@yelp.wvxiqvo.mongodb.net/?retryWrites=true&w=majority&appName=yelp
-      - DB_NAME=yelp_db
+      - MONGO_URI=${MONGO_URI}
+      - DB_NAME=${DB_NAME}
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
     depends_on:
       - kafka
@@ -96,8 +96,8 @@ services:
     ports:
       - "8010:8003"
     environment:
-      - MONGO_URI=mongodb+srv://akashkumarsenthilkumar_db_user:mTnLH54vQAmmNjir@yelp.wvxiqvo.mongodb.net/?retryWrites=true&w=majority&appName=yelp
-      - DB_NAME=yelp_db
+      - MONGO_URI=${MONGO_URI}
+      - DB_NAME=${DB_NAME}
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
     depends_on:
       - kafka
@@ -110,8 +110,8 @@ services:
       context: .
       dockerfile: services/review-worker/Dockerfile
     environment:
-      - MONGO_URI=mongodb+srv://akashkumarsenthilkumar_db_user:mTnLH54vQAmmNjir@yelp.wvxiqvo.mongodb.net/?retryWrites=true&w=majority&appName=yelp
-      - DB_NAME=yelp_db
+      - MONGO_URI=${MONGO_URI}
+      - DB_NAME=${DB_NAME}
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
     depends_on:
       - kafka
@@ -124,7 +124,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     ports:
-      - "5173:80"
+      - "80:80"
     depends_on:
       - user-api
       - restaurant-api
