@@ -43,6 +43,7 @@ jobs:
           MONGO_URI=${{ secrets.MONGO_URI }}
           DB_NAME=${{ secrets.DB_NAME }}
           JWT_SECRET=${{ secrets.JWT_SECRET }}
+          ALLOWED_ORIGINS=http://${{ secrets.EC2_HOST }},http://localhost:5173
           EOF
 
           # Build and start all services
