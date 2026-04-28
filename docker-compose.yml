@@ -141,6 +141,7 @@ services:
       - user-api
       - restaurant-api
       - review-api
+      - backend
     networks:
       - yelp-network
 
@@ -162,6 +163,25 @@ services:
       - S3_BUCKET_NAME=${S3_BUCKET_NAME}
     depends_on:
       - kafka
+    networks:
+      - yelp-network
+
+  # Backend (monolith - chat, photos, etc.)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - MONGO_URI=${MONGO_URI}
+      - DB_NAME=${DB_NAME}
+      - JWT_SECRET=${JWT_SECRET}
+      - ALLOWED_ORIGINS=http://${EC2_HOST},http://localhost:5173
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_REGION=${AWS_REGION}
+      - S3_BUCKET_NAME=${S3_BUCKET_NAME}
     networks:
       - yelp-network
 
