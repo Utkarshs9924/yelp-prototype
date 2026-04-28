@@ -31,15 +31,23 @@ export const fetchRestaurantDetails = createAsyncThunk(
 
 export const searchRestaurants = createAsyncThunk(
   'restaurants/search',
-  async ({ query, cuisine, city }, { rejectWithValue }) => {
+  async (
+    { query, cuisine, city, zip_code, pricing_tier, amenities, page = 1, limit = 30 } = {},
+    { rejectWithValue }
+  ) => {
     try {
       const params = new URLSearchParams();
-      if (query) params.append('q', query);
+      params.append('page', page);
+      params.append('limit', limit);
+      if (query) params.append('name', query);
       if (cuisine) params.append('cuisine', cuisine);
       if (city) params.append('city', city);
-      
+      if (zip_code) params.append('zip_code', zip_code);
+      if (pricing_tier) params.append('pricing_tier', pricing_tier);
+      if (amenities) params.append('amenities', amenities);
+
       const response = await api.get(`/restaurants/search?${params.toString()}`);
-      return response.data.restaurants;
+      return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.detail || 'Search failed');
     }
@@ -52,9 +60,9 @@ const initialState = {
   total: 0,
   page: 1,
   limit: 30,
+  totalPages: 1,
   loading: false,
   error: null,
-  searchResults: [],
   searching: false,
 };
 
@@ -66,7 +74,7 @@ const restaurantsSlice = createSlice({
       state.currentRestaurant = null;
     },
     clearSearchResults: (state) => {
-      state.searchResults = [];
+      state.list = [];
     },
   },
   extraReducers: (builder) => {
@@ -78,10 +86,10 @@ const restaurantsSlice = createSlice({
       })
       .addCase(fetchRestaurants.fulfilled, (state, action) => {
         state.loading = false;
-        state.list = action.payload.restaurants;
-        state.total = action.payload.total;
-        state.page = action.payload.page;
-        state.limit = action.payload.limit;
+        state.list = action.payload.restaurants || [];
+        state.total = action.payload.total || 0;
+        state.page = action.payload.page || 1;
+        state.totalPages = action.payload.total_pages || 1;
       })
       .addCase(fetchRestaurants.rejected, (state, action) => {
         state.loading = false;
@@ -107,7 +115,10 @@ const restaurantsSlice = createSlice({
       })
       .addCase(searchRestaurants.fulfilled, (state, action) => {
         state.searching = false;
-        state.searchResults = action.payload;
+        state.list = action.payload.restaurants || [];
+        state.total = action.payload.total || 0;
+        state.page = action.payload.page || 1;
+        state.totalPages = action.payload.total_pages || 1;
       })
       .addCase(searchRestaurants.rejected, (state, action) => {
         state.searching = false;

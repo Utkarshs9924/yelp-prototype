@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { restaurantAPI } from '../../services/api';
+import { useDispatch, useSelector } from 'react-redux';
+import { searchRestaurants } from '../../redux/slices/restaurantsSlice';
 import { useAuth } from '../../context/AuthContext';
 import RestaurantCard from '../../components/RestaurantCard';
 import toast from 'react-hot-toast';
@@ -40,11 +41,11 @@ function Pagination({ page, totalPages, onPageChange }) {
 
 export default function Explore() {
   const { user } = useAuth();
-  const [restaurants, setRestaurants] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
+  const dispatch = useDispatch();
+  const { list: restaurants, total, totalPages, page, searching: loading } = useSelector(
+    (state) => state.restaurants
+  );
+
   const [search, setSearch] = useState('');
   const [cityZip, setCityZip] = useState('');
   const [searchMode, setSearchMode] = useState('standard');
@@ -52,36 +53,20 @@ export default function Explore() {
   const [selectedPrice, setSelectedPrice] = useState('');
   const [selectedAmenities, setSelectedAmenities] = useState([]);
 
-  const fetchRestaurants = useCallback(async (pageNum = 1) => {
-    setLoading(true);
+  const fetchRestaurants = useCallback((pageNum = 1) => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    try {
-      const params = { page: pageNum, limit: 30 };
-      if (search.trim()) params.name = search.trim();
-      if (cityZip.trim()) {
-        const val = cityZip.trim();
-        if (/^\d+$/.test(val)) params.zip_code = val;
-        else params.city = val;
-      }
-      if (selectedCuisine) params.cuisine = selectedCuisine;
-      if (selectedPrice) params.pricing_tier = selectedPrice;
-      if (selectedAmenities.length > 0) params.amenities = selectedAmenities.join(',');
-      
-      const { data } = await restaurantAPI.search(params);
-      const list = data?.restaurants || [];
-      setRestaurants(list);
-      setTotal(data?.total || list.length);
-      setTotalPages(data?.total_pages || 1);
-      setPage(pageNum);
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to load restaurants');
-      setRestaurants([]);
-      setTotal(0);
-      setTotalPages(1);
-    } finally {
-      setLoading(false);
-    }
-  }, [search, cityZip, selectedCuisine, selectedPrice, selectedAmenities]);
+    const val = cityZip.trim();
+    dispatch(searchRestaurants({
+      query: search.trim() || undefined,
+      cuisine: selectedCuisine || undefined,
+      city: val && !/^\d+$/.test(val) ? val : undefined,
+      zip_code: val && /^\d+$/.test(val) ? val : undefined,
+      pricing_tier: selectedPrice || undefined,
+      amenities: selectedAmenities.length > 0 ? selectedAmenities.join(',') : undefined,
+      page: pageNum,
+      limit: 30,
+    }));
+  }, [dispatch, search, cityZip, selectedCuisine, selectedPrice, selectedAmenities]);
 
   useEffect(() => {
     fetchRestaurants(1);
@@ -416,10 +401,10 @@ export default function Explore() {
             </form>
 
             <div className="filters-row">
-              <select 
+              <select
                 className="filter-select"
                 value={selectedCuisine}
-                onChange={(e) => { setSelectedCuisine(e.target.value); setPage(1); }}
+                onChange={(e) => { setSelectedCuisine(e.target.value); fetchRestaurants(1); }}
               >
                 <option value="">All Cuisines</option>
                 <option value="American">American</option>
@@ -439,7 +424,11 @@ export default function Explore() {
                   <button
                     key={tier}
                     className={`price-btn ${selectedPrice === tier ? 'active' : ''}`}
-                    onClick={() => { setSelectedPrice(selectedPrice === tier ? '' : tier); setPage(1); }}
+                    onClick={() => {
+                      const next = selectedPrice === tier ? '' : tier;
+                      setSelectedPrice(next);
+                      fetchRestaurants(1);
+                    }}
                   >
                     {'$'.repeat(parseInt(tier))}
                   </button>
@@ -456,7 +445,7 @@ export default function Explore() {
                         ? selectedAmenities.filter(a => a !== amenity)
                         : [...selectedAmenities, amenity];
                       setSelectedAmenities(next);
-                      setPage(1);
+                      fetchRestaurants(1);
                     }}
                   >
                     {amenity}
