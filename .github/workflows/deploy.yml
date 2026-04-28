@@ -54,22 +54,22 @@ jobs:
             echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
           fi
 
-          cat > .env.production << EOF
-          MONGO_URI=${{ secrets.MONGO_URI }}
-          DB_NAME=${{ secrets.DB_NAME }}
-          JWT_SECRET=${{ secrets.JWT_SECRET }}
-          ALLOWED_ORIGINS=http://${{ secrets.EC2_HOST }},http://localhost:5173
-          AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_REGION=${{ secrets.AWS_REGION }}
-          S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }}
-          DB_HOST=${{ secrets.DB_HOST }}
-          DB_USER=${{ secrets.DB_USER }}
-          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-          AZURE_OPENAI_API_KEY=${{ secrets.AZURE_OPENAI_API_KEY }}
-          AZURE_OPENAI_ENDPOINT=${{ secrets.AZURE_OPENAI_ENDPOINT }}
-          TAVILY_API_KEY=${{ secrets.TAVILY_API_KEY }}
-          EOF
+cat > .env.production << EOF
+MONGO_URI=${{ secrets.MONGO_URI }}
+DB_NAME=${{ secrets.DB_NAME }}
+JWT_SECRET=${{ secrets.JWT_SECRET }}
+ALLOWED_ORIGINS=http://${{ secrets.EC2_HOST }},http://localhost:5173
+AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
+AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
+AWS_REGION=${{ secrets.AWS_REGION }}
+S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }}
+DB_HOST=${{ secrets.DB_HOST }}
+DB_USER=${{ secrets.DB_USER }}
+DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+AZURE_OPENAI_API_KEY=${{ secrets.AZURE_OPENAI_API_KEY }}
+AZURE_OPENAI_ENDPOINT=${{ secrets.AZURE_OPENAI_ENDPOINT }}
+TAVILY_API_KEY=${{ secrets.TAVILY_API_KEY }}
+EOF
 
           sudo docker compose --env-file .env.production build --no-cache --parallel 1
           sudo docker compose --env-file .env.production up -d --build

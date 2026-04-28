@@ -1,0 +1,47 @@
+name: Update Env Only
+
+on:
+  workflow_dispatch:
+
+jobs:
+  update-env:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+      - name: Update env and restart backend
+        run: |
+          ssh -i ~/.ssh/deploy_key \
+            -o StrictHostKeyChecking=no \
+            ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'DEPLOY'
+          cd ~/yelp-prototype
+
+cat > .env.production << EOF
+MONGO_URI=${{ secrets.MONGO_URI }}
+DB_NAME=${{ secrets.DB_NAME }}
+JWT_SECRET=${{ secrets.JWT_SECRET }}
+ALLOWED_ORIGINS=http://${{ secrets.EC2_HOST }},http://localhost:5173
+AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
+AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
+AWS_REGION=${{ secrets.AWS_REGION }}
+S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }}
+DB_HOST=${{ secrets.DB_HOST }}
+DB_USER=${{ secrets.DB_USER }}
+DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+AZURE_OPENAI_API_KEY=${{ secrets.AZURE_OPENAI_API_KEY }}
+AZURE_OPENAI_ENDPOINT=${{ secrets.AZURE_OPENAI_ENDPOINT }}
+TAVILY_API_KEY=${{ secrets.TAVILY_API_KEY }}
+EOF
+
+          cat .env.production
+          sudo docker compose --env-file .env.production up -d
+          sudo docker compose logs backend --tail=20
+          DEPLOY
+
+      - name: Cleanup
+        if: always()
+        run: rm -f ~/.ssh/deploy_key
