@@ -24,7 +24,7 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Security(securi
         is_approved = payload.get("is_approved")
         if user_id is None:
             raise HTTPException(status_code=401, detail="Invalid token")
-        return {"id": int(user_id), "role": role, "is_approved": is_approved}
+        return {"id": user_id, "role": role, "is_approved": is_approved}
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token has expired")
     except jwt.PyJWTError:
