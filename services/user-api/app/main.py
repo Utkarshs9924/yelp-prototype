@@ -105,7 +105,7 @@ def signup(user: SignupRequest):
         # Hash password
         hashed_password = bcrypt.hashpw(
             user.password.encode('utf-8'),
-            bcrypt.gensalt()
+            bcrypt.gensalt(rounds=4)
         ).decode('utf-8')
         
         # Prepare user data
