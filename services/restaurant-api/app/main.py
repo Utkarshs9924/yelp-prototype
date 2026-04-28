@@ -29,7 +29,6 @@ app.add_middleware(
 )
 
 def serialize_doc(doc):
-    """Recursively convert ObjectId and datetime to serializable types"""
     if isinstance(doc, dict):
         return {k: serialize_doc(v) for k, v in doc.items()}
     elif isinstance(doc, list):
@@ -99,22 +98,43 @@ def get_restaurants(page: int = 1, limit: int = 30):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/restaurants/search")
-def search_restaurants(q: Optional[str] = None, cuisine: Optional[str] = None, city: Optional[str] = None):
+def search_restaurants(
+    q: Optional[str] = None,
+    name: Optional[str] = None,
+    cuisine: Optional[str] = None,
+    city: Optional[str] = None,
+    pricing_tier: Optional[str] = None,
+    amenities: Optional[str] = None,
+    page: int = 1,
+    limit: int = 30
+):
     try:
         restaurants = get_restaurants_collection()
         query = {}
-        if q:
-            query["$or"] = [{"name": {"$regex": q, "$options": "i"}}, {"description": {"$regex": q, "$options": "i"}}]
+        search_term = q or name
+        if search_term:
+            query["$or"] = [
+                {"name": {"$regex": search_term, "$options": "i"}},
+                {"description": {"$regex": search_term, "$options": "i"}}
+            ]
         if cuisine:
             query["cuisine_type"] = {"$regex": cuisine, "$options": "i"}
         if city:
             query["city"] = {"$regex": city, "$options": "i"}
-        results = list(restaurants.find(query).limit(50))
+        if pricing_tier:
+            query["pricing_tier"] = pricing_tier
+        if amenities:
+            amenity_list = [a.strip() for a in amenities.split(',') if a.strip()]
+            for a in amenity_list:
+                query["amenities"] = {"$regex": a, "$options": "i"}
+        skip = (page - 1) * limit
+        total = restaurants.count_documents(query)
+        results = list(restaurants.find(query).skip(skip).limit(limit))
         result = []
         for r in results:
             r["id"] = str(r.pop("_id"))
             result.append(serialize_doc(r))
-        return {"restaurants": result}
+        return {"restaurants": result, "total": total, "page": page, "limit": limit}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
