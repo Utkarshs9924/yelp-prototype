@@ -48,7 +48,7 @@ jobs:
             echo 'AZURE_OPENAI_ENDPOINT=$AZURE_OPENAI_ENDPOINT' >> .env.production && \
             echo 'TAVILY_API_KEY=$TAVILY_API_KEY' >> .env.production && \
             cat .env.production && \
-            sudo docker compose --env-file .env.production up -d && \
+            sudo docker compose --env-file .env.production up -d --force-recreate && \
             sudo docker compose logs backend --tail=20"
 
       - name: Cleanup
