@@ -5,6 +5,8 @@ Publishes events to Kafka for async processing
 """
 import sys
 import os
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 
 # Add parent directory to path to import common module
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
@@ -25,6 +27,9 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="User API Service")
+
+# Thread pool for CPU-bound bcrypt operations
+_executor = ThreadPoolExecutor(max_workers=10)
 
 # CORS
 app.add_middleware(
@@ -178,8 +183,8 @@ def signup(user: SignupRequest):
 
 
 @app.post("/login")
-def login(user: LoginRequest):
-    """User login"""
+async def login(user: LoginRequest):
+    """User login - bcrypt runs in thread pool to avoid blocking event loop"""
     try:
         users = get_users_collection()
         
@@ -188,12 +193,20 @@ def login(user: LoginRequest):
         if not db_user:
             raise HTTPException(status_code=401, detail="Invalid email or password")
         
-        # Verify password
+        # Verify password - run bcrypt in thread pool so it doesn't block event loop
         stored_hash = db_user.get("password_hash") or db_user.get("password")
-        if not stored_hash or not bcrypt.checkpw(
+        if not stored_hash:
+            raise HTTPException(status_code=401, detail="Invalid email or password")
+
+        loop = asyncio.get_event_loop()
+        password_valid = await loop.run_in_executor(
+            _executor,
+            bcrypt.checkpw,
             user.password.encode('utf-8'),
             stored_hash.encode('utf-8')
-        ):
+        )
+
+        if not password_valid:
             raise HTTPException(status_code=401, detail="Invalid email or password")
         
         # Create JWT token
