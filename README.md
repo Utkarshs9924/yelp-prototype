@@ -513,8 +513,6 @@ MIT License - See LICENSE file for details
 ## 🔗 Links
 
 - **GitHub**: https://github.com/Utkarshs9924/yelp-prototype
-- **Report**: See `docs/Lab2_Report.pdf`
-- **Demo Video**: [YouTube Link]
 
 ---
 
