@@ -37,6 +37,21 @@ jobs:
             ./ ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:~/yelp-prototype/
 
       - name: Create env file and deploy
+        env:
+          MONGO_URI: ${{ secrets.MONGO_URI }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
+          AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
         run: |
           ssh -i ~/.ssh/deploy_key \
             -o StrictHostKeyChecking=no \
@@ -54,22 +69,20 @@ jobs:
             echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
           fi
 
-cat > .env.production << EOF
-MONGO_URI=${{ secrets.MONGO_URI }}
-DB_NAME=${{ secrets.DB_NAME }}
-JWT_SECRET=${{ secrets.JWT_SECRET }}
-ALLOWED_ORIGINS=http://${{ secrets.EC2_HOST }},http://localhost:5173
-AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
-AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
-AWS_REGION=${{ secrets.AWS_REGION }}
-S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }}
-DB_HOST=${{ secrets.DB_HOST }}
-DB_USER=${{ secrets.DB_USER }}
-DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-AZURE_OPENAI_API_KEY=${{ secrets.AZURE_OPENAI_API_KEY }}
-AZURE_OPENAI_ENDPOINT=${{ secrets.AZURE_OPENAI_ENDPOINT }}
-TAVILY_API_KEY=${{ secrets.TAVILY_API_KEY }}
-EOF
+          echo "MONGO_URI=$MONGO_URI" > .env.production
+          echo "DB_NAME=$DB_NAME" >> .env.production
+          echo "JWT_SECRET=$JWT_SECRET" >> .env.production
+          echo "ALLOWED_ORIGINS=http://$EC2_HOST,http://localhost:5173" >> .env.production
+          echo "AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID" >> .env.production
+          echo "AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY" >> .env.production
+          echo "AWS_REGION=$AWS_REGION" >> .env.production
+          echo "S3_BUCKET_NAME=$S3_BUCKET_NAME" >> .env.production
+          echo "DB_HOST=$DB_HOST" >> .env.production
+          echo "DB_USER=$DB_USER" >> .env.production
+          echo "DB_PASSWORD=$DB_PASSWORD" >> .env.production
+          echo "AZURE_OPENAI_API_KEY=$AZURE_OPENAI_API_KEY" >> .env.production
+          echo "AZURE_OPENAI_ENDPOINT=$AZURE_OPENAI_ENDPOINT" >> .env.production
+          echo "TAVILY_API_KEY=$TAVILY_API_KEY" >> .env.production
 
           sudo docker compose --env-file .env.production build --no-cache --parallel 1
           sudo docker compose --env-file .env.production up -d --build
