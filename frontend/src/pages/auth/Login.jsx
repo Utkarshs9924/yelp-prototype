@@ -1,28 +1,27 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { authAPI } from '../../services/api';
+import { useDispatch, useSelector } from 'react-redux';
+import { login } from '../../redux/slices/authSlice';
 import { useAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
 
 export default function Login() {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const dispatch = useDispatch();
+  const { login: authContextLogin } = useAuth();
+  const { loading } = useSelector((state) => state.auth);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
-    try {
-      const { data } = await authAPI.login({ email, password });
-      login(data.token, data.user);
+    const result = await dispatch(login({ email, password }));
+    if (login.fulfilled.match(result)) {
+      authContextLogin(result.payload.token, result.payload.user);
       toast.success('Welcome back!');
       navigate('/');
-    } catch (err) {
-      toast.error(err.response?.data?.detail || 'Login failed. Please check your credentials.');
-    } finally {
-      setLoading(false);
+    } else {
+      toast.error(result.payload || 'Login failed. Please check your credentials.');
     }
   };
 
