@@ -36,17 +36,15 @@ export const searchRestaurants = createAsyncThunk(
     { rejectWithValue }
   ) => {
     try {
-      const params = new URLSearchParams();
-      params.append('page', page);
-      params.append('limit', limit);
-      if (query) params.append('name', query);
-      if (cuisine) params.append('cuisine', cuisine);
-      if (city) params.append('city', city);
-      if (zip_code) params.append('zip_code', zip_code);
-      if (pricing_tier) params.append('pricing_tier', pricing_tier);
-      if (amenities) params.append('amenities', amenities);
+      const params = { page, limit };
+      if (query) params.name = query;
+      if (cuisine) params.cuisine = cuisine;
+      if (city) params.city = city;
+      if (zip_code) params.zip_code = zip_code;
+      if (pricing_tier) params.pricing_tier = pricing_tier;
+      if (amenities) params.amenities = amenities;
 
-      const response = await api.get(`/restaurants/search?${params.toString()}`);
+      const response = await api.get('/restaurants/search', { params });
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.detail || 'Search failed');
