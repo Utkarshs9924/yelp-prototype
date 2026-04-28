@@ -23,8 +23,6 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          # We skip ssh-keyscan because it's timing out in some environments.
-          # We use -o StrictHostKeyChecking=no in the rsync/ssh steps instead.
 
       - name: Copy project files to EC2
         run: |
@@ -48,7 +46,6 @@ jobs:
 
           cd ~/yelp-prototype
 
-          # Ensure swap file exists to prevent OOM during build
           if [ ! -f /swapfile ]; then
             sudo fallocate -l 2G /swapfile
             sudo chmod 600 /swapfile
@@ -57,7 +54,6 @@ jobs:
             echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
           fi
 
-          # Write production env file from github secrets
           cat > .env.production << EOF
           MONGO_URI=${{ secrets.MONGO_URI }}
           DB_NAME=${{ secrets.DB_NAME }}
@@ -69,13 +65,12 @@ jobs:
           S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }}
           EOF
 
-          # Build and start all services (limited to 1 build at a time to save RAM)
           sudo docker compose --env-file .env.production build --no-cache --parallel 1
           sudo docker compose --env-file .env.production up -d --build
 
-          # Wait a moment then show status
           sleep 10
           sudo docker compose ps
+          sudo docker compose logs backend --tail=50
 
           DEPLOY
 
