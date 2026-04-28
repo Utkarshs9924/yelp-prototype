@@ -1,0 +1,71 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: owner-api
+  labels:
+    app: owner-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: owner-api
+  template:
+    metadata:
+      labels:
+        app: owner-api
+    spec:
+      containers:
+        - name: owner-api
+          image: yelp-prototype-owner-api:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8004
+          env:
+            - name: MONGO_URI
+              valueFrom:
+                configMapKeyRef:
+                  name: yelp-config
+                  key: MONGO_URI
+            - name: DB_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: yelp-config
+                  key: DB_NAME
+            - name: JWT_SECRET
+              valueFrom:
+                configMapKeyRef:
+                  name: yelp-config
+                  key: JWT_SECRET
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: yelp-config
+                  key: AWS_ACCESS_KEY_ID
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                configMapKeyRef:
+                  name: yelp-config
+                  key: AWS_SECRET_ACCESS_KEY
+            - name: AWS_REGION
+              valueFrom:
+                configMapKeyRef:
+                  name: yelp-config
+                  key: AWS_REGION
+            - name: S3_BUCKET_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: yelp-config
+                  key: S3_BUCKET_NAME
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: owner-api
+spec:
+  selector:
+    app: owner-api
+  ports:
+    - protocol: TCP
+      port: 8004
+      targetPort: 8004
+  type: ClusterIP
