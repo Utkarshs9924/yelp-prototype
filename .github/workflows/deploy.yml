@@ -41,7 +41,6 @@ jobs:
           MONGO_URI: ${{ secrets.MONGO_URI }}
           DB_NAME: ${{ secrets.DB_NAME }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
-          EC2_HOST: ${{ secrets.EC2_HOST }}
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_REGION: ${{ secrets.AWS_REGION }}
@@ -60,7 +59,7 @@ jobs:
             echo 'MONGO_URI=$MONGO_URI' > .env.production && \
             echo 'DB_NAME=$DB_NAME' >> .env.production && \
             echo 'JWT_SECRET=$JWT_SECRET' >> .env.production && \
-            echo 'ALLOWED_ORIGINS=http://$EC2_HOST,http://localhost:5173' >> .env.production && \
+            echo 'ALLOWED_ORIGINS=http://3.136.102.129,http://localhost:5173' >> .env.production && \
             echo 'AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID' >> .env.production && \
             echo 'AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY' >> .env.production && \
             echo 'AWS_REGION=$AWS_REGION' >> .env.production && \
