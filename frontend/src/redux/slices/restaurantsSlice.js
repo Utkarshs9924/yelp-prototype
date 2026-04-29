@@ -1,10 +1,6 @@
-/**
- * Restaurants Slice - Manages restaurant data
- */
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import api from '../../services/api';
 
-// Async thunks
 export const fetchRestaurants = createAsyncThunk(
   'restaurants/fetchAll',
   async ({ page = 1, limit = 30 } = {}, { rejectWithValue }) => {
@@ -77,7 +73,6 @@ const restaurantsSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
-      // Fetch all restaurants
       .addCase(fetchRestaurants.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -87,13 +82,13 @@ const restaurantsSlice = createSlice({
         state.list = action.payload.restaurants || [];
         state.total = action.payload.total || 0;
         state.page = action.payload.page || 1;
-        state.totalPages = action.payload.total_pages || 1;
+        state.limit = action.payload.limit || 30;
+        state.totalPages = Math.ceil((action.payload.total || 0) / (action.payload.limit || 30));
       })
       .addCase(fetchRestaurants.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
       })
-      // Fetch restaurant details
       .addCase(fetchRestaurantDetails.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -106,7 +101,6 @@ const restaurantsSlice = createSlice({
         state.loading = false;
         state.error = action.payload;
       })
-      // Search restaurants
       .addCase(searchRestaurants.pending, (state) => {
         state.searching = true;
         state.error = null;
@@ -116,7 +110,8 @@ const restaurantsSlice = createSlice({
         state.list = action.payload.restaurants || [];
         state.total = action.payload.total || 0;
         state.page = action.payload.page || 1;
-        state.totalPages = action.payload.total_pages || 1;
+        state.limit = action.payload.limit || 30;
+        state.totalPages = Math.ceil((action.payload.total || 0) / (action.payload.limit || 30));
       })
       .addCase(searchRestaurants.rejected, (state, action) => {
         state.searching = false;
