@@ -12,7 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
 from common.kafka import get_producer
-from common.database import get_reviews_collection, get_restaurants_collection
+from common.database import get_reviews_collection, get_restaurants_collection, get_users_collection
 from bson import ObjectId
 from datetime import datetime
 import logging
@@ -39,7 +39,6 @@ class ReviewCreate(BaseModel):
 
 
 def serialize_doc(doc):
-    """Recursively serialize MongoDB doc - handles ObjectId and datetime"""
     if isinstance(doc, dict):
         return {k: serialize_doc(v) for k, v in doc.items()}
     elif isinstance(doc, list):
@@ -52,16 +51,28 @@ def serialize_doc(doc):
 
 
 def restaurant_id_query(restaurant_id: str) -> dict:
-    """
-    Build a query that matches restaurant_id stored as either
-    a plain string (new reviews) or ObjectId (migrated reviews).
-    """
     if ObjectId.is_valid(restaurant_id):
         return {"$or": [
             {"restaurant_id": restaurant_id},
             {"restaurant_id": ObjectId(restaurant_id)}
         ]}
     return {"restaurant_id": restaurant_id}
+
+
+def get_user_name(user_id: str) -> str:
+    """Look up user name from users collection"""
+    try:
+        users = get_users_collection()
+        user = None
+        if ObjectId.is_valid(user_id):
+            user = users.find_one({"_id": ObjectId(user_id)})
+        if not user:
+            user = users.find_one({"_id": user_id})
+        if user:
+            return user.get("name", "Anonymous")
+    except Exception:
+        pass
+    return "Anonymous"
 
 
 @app.get("/")
@@ -71,7 +82,6 @@ def root():
 
 @app.post("/reviews")
 def create_review(review: ReviewCreate):
-    """Create review - store as string IDs, publish event to Kafka"""
     try:
         reviews = get_reviews_collection()
 
@@ -118,17 +128,28 @@ def create_review(review: ReviewCreate):
 
 @app.get("/restaurants/{restaurant_id}/reviews")
 def get_restaurant_reviews(restaurant_id: str):
-    """
-    Get all reviews for a restaurant.
-    Queries by both string and ObjectId to handle migrated + new reviews.
-    """
     try:
         reviews = get_reviews_collection()
         query = restaurant_id_query(restaurant_id)
         review_list = list(reviews.find(query).sort("created_at", -1))
 
+        # Build user name cache to avoid repeated DB lookups
+        user_id_set = set()
+        for r in review_list:
+            uid = r.get("user_id")
+            if uid:
+                user_id_set.add(str(uid) if isinstance(uid, ObjectId) else uid)
+
+        user_name_cache = {}
+        for uid in user_id_set:
+            user_name_cache[uid] = get_user_name(uid)
+
         for r in review_list:
             r["id"] = str(r.pop("_id"))
+            uid = r.get("user_id")
+            uid_str = str(uid) if isinstance(uid, ObjectId) else uid
+            r["user_id"] = uid_str
+            r["user_name"] = user_name_cache.get(uid_str, "Anonymous")
 
         return {"reviews": [serialize_doc(r) for r in review_list]}
 
@@ -139,7 +160,6 @@ def get_restaurant_reviews(restaurant_id: str):
 
 @app.put("/reviews/{review_id}")
 def update_review(review_id: str, update: ReviewCreate):
-    """Update review - publish event to Kafka"""
     try:
         reviews = get_reviews_collection()
 
@@ -185,7 +205,6 @@ def update_review(review_id: str, update: ReviewCreate):
 
 @app.delete("/reviews/{review_id}")
 def delete_review(review_id: str, restaurant_id: str):
-    """Delete review - publish event to Kafka"""
     try:
         reviews = get_reviews_collection()
 
