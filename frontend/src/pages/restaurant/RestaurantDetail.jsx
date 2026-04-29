@@ -187,9 +187,10 @@ export default function RestaurantDetail() {
         photo_url = uploadRes.photo_url;
       }
       await reviewAPI.create({
-        restaurant_id: Number(restaurant_id),
+        restaurant_id: restaurant_id,
+        user_id: user.id,
         rating: reviewRating,
-        comment: reviewComment.trim() || undefined,
+        comment: reviewComment.trim() || '',
         photo_url,
       });
       toast.success('Review submitted!');
@@ -221,7 +222,13 @@ export default function RestaurantDetail() {
     if (!editingReviewId || !editComment.trim()) return;
     setSubmitting(true);
     try {
-      await reviewAPI.update(editingReviewId, { comment: editComment.trim() });
+      const reviewToEdit = reviews.find(r => r.id === editingReviewId);
+      await reviewAPI.update(editingReviewId, {
+        restaurant_id: restaurant_id,
+        user_id: user.id,
+        rating: reviewToEdit?.rating ?? 1,
+        comment: editComment.trim(),
+      });
       toast.success('Review updated');
       setEditingReviewId(null);
       setEditComment('');
