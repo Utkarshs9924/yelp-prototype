@@ -1,5 +1,4 @@
 services:
-  # Zookeeper - required for Kafka
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
     environment:
@@ -9,12 +8,17 @@ services:
       - "2182:2181"
     networks:
       - yelp-network
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "2181"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-  # Kafka broker
   kafka:
     image: confluentinc/cp-kafka:7.5.0
     depends_on:
-      - zookeeper
+      zookeeper:
+        condition: service_healthy
     ports:
       - "9093:9092"
     environment:
@@ -24,10 +28,15 @@ services:
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
     networks:
       - yelp-network
 
-  # User API Service (Producer)
   user-api:
     build:
       context: .
@@ -44,11 +53,11 @@ services:
       - AWS_REGION=${AWS_REGION}
       - S3_BUCKET_NAME=${S3_BUCKET_NAME}
     depends_on:
-      - kafka
+      kafka:
+        condition: service_healthy
     networks:
       - yelp-network
 
-  # User Worker Service (Consumer)
   user-worker:
     build:
       context: .
@@ -58,11 +67,11 @@ services:
       - DB_NAME=${DB_NAME}
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
     depends_on:
-      - kafka
+      kafka:
+        condition: service_healthy
     networks:
       - yelp-network
 
-  # Restaurant API Service (Producer)
   restaurant-api:
     build:
       context: .
@@ -78,11 +87,11 @@ services:
       - AWS_REGION=${AWS_REGION}
       - S3_BUCKET_NAME=${S3_BUCKET_NAME}
     depends_on:
-      - kafka
+      kafka:
+        condition: service_healthy
     networks:
       - yelp-network
 
-  # Restaurant Worker Service (Consumer)
   restaurant-worker:
     build:
       context: .
@@ -92,11 +101,11 @@ services:
       - DB_NAME=${DB_NAME}
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
     depends_on:
-      - kafka
+      kafka:
+        condition: service_healthy
     networks:
       - yelp-network
 
-  # Review API Service (Producer)
   review-api:
     build:
       context: .
@@ -112,11 +121,11 @@ services:
       - AWS_REGION=${AWS_REGION}
       - S3_BUCKET_NAME=${S3_BUCKET_NAME}
     depends_on:
-      - kafka
+      kafka:
+        condition: service_healthy
     networks:
       - yelp-network
 
-  # Review Worker Service (Consumer)
   review-worker:
     build:
       context: .
@@ -126,26 +135,11 @@ services:
       - DB_NAME=${DB_NAME}
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
     depends_on:
-      - kafka
+      kafka:
+        condition: service_healthy
     networks:
       - yelp-network
 
-  # Frontend (React + Vite)
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    ports:
-      - "80:80"
-    depends_on:
-      - user-api
-      - restaurant-api
-      - review-api
-      - backend
-    networks:
-      - yelp-network
-
-  # Owner API Service (Producer)
   owner-api:
     build:
       context: .
@@ -162,11 +156,11 @@ services:
       - AWS_REGION=${AWS_REGION}
       - S3_BUCKET_NAME=${S3_BUCKET_NAME}
     depends_on:
-      - kafka
+      kafka:
+        condition: service_healthy
     networks:
       - yelp-network
 
-  # Backend (monolith - chat, photos, etc.)
   backend:
     build:
       context: ./backend
@@ -188,6 +182,21 @@ services:
       - AZURE_OPENAI_API_KEY=${AZURE_OPENAI_API_KEY}
       - AZURE_OPENAI_ENDPOINT=${AZURE_OPENAI_ENDPOINT}
       - TAVILY_API_KEY=${TAVILY_API_KEY}
+    networks:
+      - yelp-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+    depends_on:
+      - user-api
+      - restaurant-api
+      - review-api
+      - owner-api
+      - backend
     networks:
       - yelp-network
 

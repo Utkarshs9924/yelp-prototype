@@ -19,7 +19,6 @@ logger = logging.getLogger(__name__)
 def handle_review_event(topic: str, event: dict, key: str):
     """Handle review events from Kafka"""
     logger.info(f"📨 Processing event from {topic}: {event}")
-    
     try:
         if topic == "review.created":
             handle_review_created(event)
@@ -28,82 +27,84 @@ def handle_review_event(topic: str, event: dict, key: str):
         elif topic == "review.deleted":
             handle_review_deleted(event)
         else:
-            logger.warning(f"⚠️  Unknown topic: {topic}")
-            
+            logger.warning(f"⚠️ Unknown topic: {topic}")
     except Exception as e:
         logger.error(f"❌ Error handling event: {e}")
 
 
 def update_restaurant_rating(restaurant_id: str):
-    """Recalculate and update restaurant rating"""
+    """
+    Recalculate and update restaurant average rating and review count.
+    Matches both string and ObjectId restaurant_id to handle migrated
+    reviews (ObjectId) and new reviews (string) in the same aggregation.
+    """
     try:
         reviews = get_reviews_collection()
         restaurants = get_restaurants_collection()
-        
-        # Calculate average rating and count
+
+        # Match both storage formats so migrated + new reviews are all counted
+        match_stage = {"$or": [
+            {"restaurant_id": restaurant_id},
+        ]}
+        if ObjectId.is_valid(restaurant_id):
+            match_stage["$or"].append({"restaurant_id": ObjectId(restaurant_id)})
+
         pipeline = [
-            {"$match": {"restaurant_id": restaurant_id}},
+            {"$match": match_stage},
             {"$group": {
-                "_id": "$restaurant_id",
+                "_id": None,
                 "average_rating": {"$avg": "$rating"},
                 "review_count": {"$sum": 1}
             }}
         ]
-        
+
         result = list(reviews.aggregate(pipeline))
-        
+
         if result:
-            avg_rating = result[0]["average_rating"]
+            avg_rating = round(result[0]["average_rating"], 2)
             count = result[0]["review_count"]
         else:
             avg_rating = 0.0
             count = 0
-        
-        # Update restaurant
+
+        # Update by ObjectId (restaurant _id is always ObjectId in MongoDB)
         restaurants.update_one(
             {"_id": ObjectId(restaurant_id)},
             {"$set": {
-                "average_rating": round(avg_rating, 2),
+                "average_rating": avg_rating,
                 "review_count": count
             }}
         )
-        
-        logger.info(f"✅ Updated restaurant {restaurant_id}: avg={avg_rating:.2f}, count={count}")
-        
+
+        logger.info(f"✅ Updated restaurant {restaurant_id}: avg={avg_rating}, count={count}")
+
     except Exception as e:
         logger.error(f"❌ Error updating restaurant rating: {e}")
 
 
 def handle_review_created(event: dict):
-    """Process review creation"""
-    logger.info(f"✅ Review created: {event['review_id']} with rating {event['rating']}")
+    logger.info(f"✅ Review created: {event['review_id']} rating={event['rating']}")
     update_restaurant_rating(event["restaurant_id"])
 
 
 def handle_review_updated(event: dict):
-    """Process review update"""
     logger.info(f"✅ Review updated: {event['review_id']}")
     update_restaurant_rating(event["restaurant_id"])
 
 
 def handle_review_deleted(event: dict):
-    """Process review deletion"""
     logger.info(f"✅ Review deleted: {event['review_id']}")
     update_restaurant_rating(event["restaurant_id"])
 
 
 def main():
-    """Start the consumer"""
     logger.info("🚀 Starting Review Worker Service...")
-    
     topics = ["review.created", "review.updated", "review.deleted"]
-    
     consumer = EventConsumer(
         topics=topics,
         group_id="review-worker-group",
         handler=handle_review_event
     )
-    
     consumer.start_consuming()
 
 
