@@ -28,12 +28,7 @@ services:
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-    healthcheck:
-      test: ["CMD-SHELL", "bash -c 'cat /dev/null > /dev/tcp/localhost/9092'"]
-      interval: 10s
-      timeout: 10s
-      retries: 10
-      start_period: 30s
+    restart: on-failure
     networks:
       - yelp-network
 
@@ -53,8 +48,8 @@ services:
       - AWS_REGION=${AWS_REGION}
       - S3_BUCKET_NAME=${S3_BUCKET_NAME}
     depends_on:
-      kafka:
-        condition: service_healthy
+      - kafka
+    restart: on-failure
     networks:
       - yelp-network
 
@@ -67,8 +62,8 @@ services:
       - DB_NAME=${DB_NAME}
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
     depends_on:
-      kafka:
-        condition: service_healthy
+      - kafka
+    restart: on-failure
     networks:
       - yelp-network
 
@@ -87,8 +82,8 @@ services:
       - AWS_REGION=${AWS_REGION}
       - S3_BUCKET_NAME=${S3_BUCKET_NAME}
     depends_on:
-      kafka:
-        condition: service_healthy
+      - kafka
+    restart: on-failure
     networks:
       - yelp-network
 
@@ -101,8 +96,8 @@ services:
       - DB_NAME=${DB_NAME}
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
     depends_on:
-      kafka:
-        condition: service_healthy
+      - kafka
+    restart: on-failure
     networks:
       - yelp-network
 
@@ -121,8 +116,8 @@ services:
       - AWS_REGION=${AWS_REGION}
       - S3_BUCKET_NAME=${S3_BUCKET_NAME}
     depends_on:
-      kafka:
-        condition: service_healthy
+      - kafka
+    restart: on-failure
     networks:
       - yelp-network
 
@@ -135,8 +130,8 @@ services:
       - DB_NAME=${DB_NAME}
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
     depends_on:
-      kafka:
-        condition: service_healthy
+      - kafka
+    restart: on-failure
     networks:
       - yelp-network
 
@@ -156,8 +151,8 @@ services:
       - AWS_REGION=${AWS_REGION}
       - S3_BUCKET_NAME=${S3_BUCKET_NAME}
     depends_on:
-      kafka:
-        condition: service_healthy
+      - kafka
+    restart: on-failure
     networks:
       - yelp-network
 
