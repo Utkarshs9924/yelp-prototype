@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: restaurant-api
-        image: 256056996949.dkr.ecr.us-east-2.amazonaws.com/restaurant-api:latest
+        image: 256056996949.dkr.ecr.us-east-2.amazonaws.com/yelp-restaurant-api:latest
         ports:
         - containerPort: 8002
         envFrom:
@@ -42,4 +42,4 @@ spec:
   ports:
   - port: 8002
     targetPort: 8002
-  type: LoadBalancer
+  type: ClusterIP

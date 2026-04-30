@@ -16,46 +16,13 @@ spec:
     spec:
       containers:
         - name: owner-api
-          image: yelp-prototype-owner-api:latest
-          imagePullPolicy: Never
+          image: 256056996949.dkr.ecr.us-east-2.amazonaws.com/yelp-owner-api:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 8004
-          env:
-            - name: MONGO_URI
-              valueFrom:
-                configMapKeyRef:
-                  name: yelp-config
-                  key: MONGO_URI
-            - name: DB_NAME
-              valueFrom:
-                configMapKeyRef:
-                  name: yelp-config
-                  key: DB_NAME
-            - name: JWT_SECRET
-              valueFrom:
-                configMapKeyRef:
-                  name: yelp-config
-                  key: JWT_SECRET
-            - name: AWS_ACCESS_KEY_ID
-              valueFrom:
-                configMapKeyRef:
-                  name: yelp-config
-                  key: AWS_ACCESS_KEY_ID
-            - name: AWS_SECRET_ACCESS_KEY
-              valueFrom:
-                configMapKeyRef:
-                  name: yelp-config
-                  key: AWS_SECRET_ACCESS_KEY
-            - name: AWS_REGION
-              valueFrom:
-                configMapKeyRef:
-                  name: yelp-config
-                  key: AWS_REGION
-            - name: S3_BUCKET_NAME
-              valueFrom:
-                configMapKeyRef:
-                  name: yelp-config
-                  key: S3_BUCKET_NAME
+          envFrom:
+          - configMapRef:
+              name: app-config
 ---
 apiVersion: v1
 kind: Service

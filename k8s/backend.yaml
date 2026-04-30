@@ -1,25 +1,25 @@
-# Review API Deployment
+# Backend Deployment
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: review-api
+  name: backend
   labels:
-    app: review-api
+    app: backend
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
-      app: review-api
+      app: backend
   template:
     metadata:
       labels:
-        app: review-api
+        app: backend
     spec:
       containers:
-      - name: review-api
-        image: 256056996949.dkr.ecr.us-east-2.amazonaws.com/yelp-review-api:latest
+      - name: backend
+        image: 256056996949.dkr.ecr.us-east-2.amazonaws.com/yelp-backend:latest
         ports:
-        - containerPort: 8003
+        - containerPort: 8000
         envFrom:
         - configMapRef:
             name: app-config
@@ -31,15 +31,15 @@ spec:
             memory: "512Mi"
             cpu: "500m"
 ---
-# Review API Service
+# Backend Service
 apiVersion: v1
 kind: Service
 metadata:
-  name: review-api
+  name: backend
 spec:
   selector:
-    app: review-api
+    app: backend
   ports:
-  - port: 8003
-    targetPort: 8003
+  - port: 8000
+    targetPort: 8000
   type: ClusterIP

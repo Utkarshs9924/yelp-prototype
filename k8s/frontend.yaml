@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: frontend
-        image: 256056996949.dkr.ecr.us-east-2.amazonaws.com/frontend:latest
+        image: 256056996949.dkr.ecr.us-east-2.amazonaws.com/yelp-frontend:latest
         ports:
         - containerPort: 80
         resources:

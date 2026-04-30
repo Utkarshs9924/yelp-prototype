@@ -1,4 +1,3 @@
-# ConfigMap for common environment variables
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -8,5 +7,7 @@ data:
   DB_NAME: "yelp_db"
   KAFKA_BOOTSTRAP_SERVERS: "kafka:29092"
   JWT_SECRET: "akash_yelp_lab_secret_key_2024_!@#"
-  S3_BUCKET_NAME: "yelp-restaurant-photos-akash-lab2"
-  AWS_REGION: "us-east-1"
+  S3_BUCKET_NAME: "yelp-lab2-photos"
+  AWS_REGION: "us-east-2"
+  GROQ_API_KEY: "placeholder"
+  TAVILY_API_KEY: "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"
