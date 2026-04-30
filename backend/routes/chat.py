@@ -11,8 +11,8 @@ from datetime import datetime
 
 from langchain_groq import ChatGroq
 from langchain_community.tools.tavily_search import TavilySearchResults
-from langchain.agents import AgentExecutor, create_openai_functions_agent
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain.agents import AgentExecutor, create_react_agent
+from langchain_core.prompts import PromptTemplate
 from langchain.tools import tool
 
 router = APIRouter(tags=["Chat"])
@@ -120,6 +120,7 @@ async def chat_endpoint(data: ChatMessage, user: dict = Depends(get_current_user
                 pass
 
         prefs_str = json.dumps(prefs) if prefs else "No specific preferences saved."
+        safe_prefs = prefs_str.replace("{", "{{").replace("}", "}}")
 
         llm = ChatGroq(
             model="llama-3.1-8b-instant",
@@ -136,36 +137,36 @@ async def chat_endpoint(data: ChatMessage, user: dict = Depends(get_current_user
             except Exception as e:
                 print(f"Failed to initialize Tavily: {e}")
 
-        safe_prefs = prefs_str.replace("{", "{{").replace("}", "}}")
+        tool_names = ", ".join([t.name for t in tools])
+        tool_descriptions = "\n".join([f"{t.name}: {t.description}" for t in tools])
 
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", f"""You are 'Yelp Assistant', a helpful and enthusiastic AI concierge for our restaurant discovery platform.
-            The current user's saved preferences are: {safe_prefs}.
+        prompt = PromptTemplate.from_template(
+            "You are Yelp Assistant, a helpful restaurant discovery AI.\n"
+            f"User preferences: {safe_prefs}\n\n"
+            "You have access to these tools:\n"
+            f"{tool_descriptions}\n\n"
+            "Use this exact format:\n"
+            "Thought: think about what to do\n"
+            "Action: tool name (must be one of: " + tool_names + ")\n"
+            "Action Input: input string for the tool\n"
+            "Observation: tool result\n"
+            "... (you may repeat Thought/Action/Observation)\n"
+            "Thought: I now have enough to answer\n"
+            "Final Answer: your helpful conversational response\n\n"
+            "Question: {input}\n"
+            "Thought:{agent_scratchpad}"
+        )
 
-            CRITICAL WORKFLOW — follow these steps for EVERY user query:
+        agent = create_react_agent(llm, tools, prompt)
+        agent_executor = AgentExecutor(
+            agent=agent,
+            tools=tools,
+            verbose=True,
+            handle_parsing_errors=True,
+            max_iterations=4
+        )
 
-            STEP 1: ALWAYS call 'search_local_restaurants' first to find matching restaurants in our database.
-
-            STEP 2: If Tavily is available, call 'tavily_search_results_json' to enrich your answer with real-time web context.
-
-            STEP 3: Combine both sources into a rich, helpful answer:
-              - Lead with our database results (name, cuisine, rating, price)
-              - Enhance with live web findings if available
-              - Flag if a recommendation matches the user's saved preferences
-              - Keep responses conversational and under 5 sentences.
-            """),
-            MessagesPlaceholder(variable_name="chat_history"),
-            ("human", "{input}"),
-            MessagesPlaceholder(variable_name="agent_scratchpad"),
-        ])
-
-        agent = create_openai_functions_agent(llm, tools, prompt)
-        agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
-
-        result = agent_executor.invoke({
-            "input": data.message,
-            "chat_history": []
-        })
+        result = agent_executor.invoke({"input": data.message})
 
         unique_restaurants = []
         seen_ids = set()
@@ -176,7 +177,7 @@ async def chat_endpoint(data: ChatMessage, user: dict = Depends(get_current_user
                 seen_ids.add(rid)
 
         return {
-            "response": result["output"],
+            "response": result.get("output", "Sorry, I could not generate a response."),
             "restaurants": unique_restaurants
         }
 
