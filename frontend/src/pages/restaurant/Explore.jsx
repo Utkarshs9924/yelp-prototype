@@ -52,6 +52,7 @@ export default function Explore() {
   const [selectedCuisine, setSelectedCuisine] = useState('');
   const [selectedPrice, setSelectedPrice] = useState('');
   const [selectedAmenities, setSelectedAmenities] = useState([]);
+  const [hasSearched, setHasSearched] = useState(false);
 
   const fetchRestaurants = useCallback((pageNum = 1) => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -72,8 +73,21 @@ export default function Explore() {
     fetchRestaurants(1);
   }, []);
 
+  // Reset filters after search completes
+  useEffect(() => {
+    if (hasSearched && !loading) {
+      setSelectedCuisine('');
+      setSelectedPrice('');
+      setSelectedAmenities([]);
+      setSearch('');
+      setCityZip('');
+      setHasSearched(false);
+    }
+  }, [loading, hasSearched]);
+
   const handleSearchSubmit = (e) => {
     e.preventDefault();
+    setHasSearched(true);
     fetchRestaurants(1);
   };
 
