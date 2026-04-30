@@ -81,6 +81,21 @@ def search_local_restaurants(query: str) -> str:
         results_text = []
         for r in results:
             r = serialize_restaurant(r)
+
+            # Attach photos from photos collection
+            try:
+                photos_col = db['photos']
+                photo_query = {"restaurant_id": r["id"]}
+                if ObjectId.is_valid(r["id"]):
+                    photo_query = {"$or": [
+                        {"restaurant_id": r["id"]},
+                        {"restaurant_id": ObjectId(r["id"])}
+                    ]}
+                photo_docs = list(photos_col.find(photo_query).limit(3))
+                r["photos"] = [p["photo_url"] for p in photo_docs if p.get("photo_url")]
+            except Exception:
+                r["photos"] = []
+
             found_restaurants_store.append(r)
             avg = r.get('average_rating', 0)
             count = r.get('review_count', 0)
@@ -91,11 +106,11 @@ def search_local_restaurants(query: str) -> str:
                 f"- {r['name']} ({cuisine}, {city}): {desc}. Rating: {avg} ({count} reviews)"
             )
 
-        return "Found these restaurants in our database:\n" + "\n".join(results_text)
+        return "Found these restaurants:\n" + "\n".join(results_text)
 
     except Exception as e:
         print(f"Tool Error: {e}")
-        return f"Error searching local database: {str(e)}"
+        return f"Error searching restaurants: {str(e)}"
 
 
 @router.post("/chat")
@@ -138,7 +153,9 @@ async def chat_endpoint(data: ChatMessage, user: dict = Depends(get_current_user
                 print(f"Failed to initialize Tavily: {e}")
 
         prompt = PromptTemplate.from_template(
-            "You are Yelp Assistant, a helpful restaurant discovery AI.\n"
+            "You are Yelp Assistant, a friendly local food guide who knows all the best spots.\n"
+            "Never mention 'database', 'our system', or any technical terms.\n"
+            "Speak like an enthusiastic friend who loves food.\n"
             f"User preferences: {safe_prefs}\n\n"
             "You have access to these tools:\n"
             "{tools}\n\n"

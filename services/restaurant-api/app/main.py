@@ -41,8 +41,6 @@ JWT_SECRET = os.getenv("JWT_SECRET", "akash_yelp_lab_secret_key_2024_!@#")
 JWT_ALGORITHM = "HS256"
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
-
 def serialize_doc(doc):
     if isinstance(doc, dict):
         return {k: serialize_doc(v) for k, v in doc.items()}
@@ -56,7 +54,6 @@ def serialize_doc(doc):
 
 
 def get_user_id(authorization: str = None) -> str:
-    """Extract user_id from JWT Bearer token"""
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Missing or invalid token")
     token = authorization.split(" ")[1]
@@ -70,16 +67,21 @@ def get_user_id(authorization: str = None) -> str:
 
 
 def dual_id_query(field: str, value: str) -> dict:
-    """
-    Build a MongoDB query that matches a field stored as either
-    a plain string or an ObjectId — handles migrated vs new documents.
-    """
     if ObjectId.is_valid(value):
         return {"$or": [{field: value}, {field: ObjectId(value)}]}
     return {field: value}
 
 
-# ── Models ────────────────────────────────────────────────────────────────────
+def attach_photos(restaurant_id: str) -> list:
+    """Fetch photo URLs for a restaurant from the photos collection"""
+    try:
+        photos = get_photos_collection()
+        query = dual_id_query("restaurant_id", restaurant_id)
+        photo_docs = list(photos.find(query).limit(5))
+        return [p["photo_url"] for p in photo_docs if p.get("photo_url")]
+    except Exception:
+        return []
+
 
 class RestaurantCreate(BaseModel):
     name: str
@@ -106,14 +108,10 @@ class PreferencesUpdate(BaseModel):
     sort_preference: Optional[str] = None
 
 
-# ── Root ──────────────────────────────────────────────────────────────────────
-
 @app.get("/")
 def root():
     return {"service": "Restaurant API", "status": "running"}
 
-
-# ── Restaurants ───────────────────────────────────────────────────────────────
 
 @app.get("/restaurants")
 def get_restaurants(page: int = 1, limit: int = 30):
@@ -125,6 +123,7 @@ def get_restaurants(page: int = 1, limit: int = 30):
         result = []
         for r in restaurant_list:
             r["id"] = str(r.pop("_id"))
+            r["photos"] = attach_photos(r["id"])
             result.append(serialize_doc(r))
         return {"restaurants": result, "total": total, "page": page, "limit": limit}
     except Exception as e:
@@ -168,6 +167,7 @@ def search_restaurants(
         result = []
         for r in results:
             r["id"] = str(r.pop("_id"))
+            r["photos"] = attach_photos(r["id"])
             result.append(serialize_doc(r))
         return {"restaurants": result, "total": total, "page": page, "limit": limit}
     except Exception as e:
@@ -176,7 +176,6 @@ def search_restaurants(
 
 @app.get("/restaurants/{restaurant_id}/menu")
 def get_restaurant_menu(restaurant_id: str):
-    """Return embedded menu_items from the restaurant document"""
     try:
         restaurants = get_restaurants_collection()
         restaurant = restaurants.find_one({"_id": ObjectId(restaurant_id)})
@@ -192,7 +191,6 @@ def get_restaurant_menu(restaurant_id: str):
 
 @app.post("/restaurants/{restaurant_id}/claim")
 def claim_restaurant(restaurant_id: str, authorization: str = Header(None)):
-    """Owner claims an unclaimed restaurant"""
     user_id = get_user_id(authorization)
     try:
         restaurants = get_restaurants_collection()
@@ -201,12 +199,10 @@ def claim_restaurant(restaurant_id: str, authorization: str = Header(None)):
             raise HTTPException(status_code=404, detail="Restaurant not found")
         if restaurant.get("owner_id"):
             raise HTTPException(status_code=409, detail="Restaurant already claimed")
-
         restaurants.update_one(
             {"_id": ObjectId(restaurant_id)},
             {"$set": {"owner_id": user_id, "updated_at": datetime.utcnow()}}
         )
-
         try:
             producer = get_producer()
             producer.publish_event(
@@ -217,7 +213,6 @@ def claim_restaurant(restaurant_id: str, authorization: str = Header(None)):
             )
         except Exception as kafka_err:
             logger.warning(f"⚠️ Kafka unavailable, skipping event: {kafka_err}")
-
         return {"message": "Restaurant claimed successfully"}
     except HTTPException:
         raise
@@ -233,6 +228,7 @@ def get_restaurant(restaurant_id: str):
         if not restaurant:
             raise HTTPException(status_code=404, detail="Restaurant not found")
         restaurant["id"] = str(restaurant.pop("_id"))
+        restaurant["photos"] = attach_photos(restaurant["id"])
         return serialize_doc(restaurant)
     except HTTPException:
         raise
@@ -297,8 +293,6 @@ def update_restaurant(restaurant_id: str, update: RestaurantCreate):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ── Photos ────────────────────────────────────────────────────────────────────
-
 @app.post("/restaurants/{restaurant_id}/photos")
 async def upload_photo(restaurant_id: str, file: UploadFile = File(...),
                        authorization: str = Header(None)):
@@ -342,18 +336,14 @@ async def delete_photo(photo_id: str, authorization: str = Header(None)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ── Favorites ─────────────────────────────────────────────────────────────────
-
 @app.get("/favorites")
 def get_favorites(authorization: str = Header(None)):
     user_id = get_user_id(authorization)
     try:
         favorites = get_favorites_collection()
         restaurants = get_restaurants_collection()
-
         user_query = dual_id_query("user_id", user_id)
         favs = list(favorites.find(user_query))
-
         result = []
         for fav in favs:
             rid = str(fav["restaurant_id"]) if isinstance(fav["restaurant_id"], ObjectId) else fav["restaurant_id"]
@@ -361,10 +351,10 @@ def get_favorites(authorization: str = Header(None)):
                 restaurant = restaurants.find_one({"_id": ObjectId(rid)})
                 if restaurant:
                     restaurant["id"] = str(restaurant.pop("_id"))
+                    restaurant["photos"] = attach_photos(restaurant["id"])
                     result.append(serialize_doc(restaurant))
             except Exception:
                 continue
-
         return result
     except HTTPException:
         raise
@@ -380,8 +370,6 @@ def add_favorite(data: dict, authorization: str = Header(None)):
         raise HTTPException(status_code=400, detail="restaurant_id is required")
     try:
         favorites = get_favorites_collection()
-
-        # Check for existing using both string and ObjectId
         existing_query = {
             "$and": [
                 dual_id_query("user_id", user_id),
@@ -390,7 +378,6 @@ def add_favorite(data: dict, authorization: str = Header(None)):
         }
         if favorites.find_one(existing_query):
             raise HTTPException(status_code=409, detail="Already in favourites")
-
         favorites.insert_one({
             "user_id": user_id,
             "restaurant_id": restaurant_id,
@@ -443,8 +430,6 @@ def remove_favorite(restaurant_id: str, authorization: str = Header(None)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ── Preferences ───────────────────────────────────────────────────────────────
-
 @app.get("/preferences")
 def get_preferences(authorization: str = Header(None)):
     user_id = get_user_id(authorization)
@@ -473,7 +458,7 @@ def update_preferences(update: PreferencesUpdate, authorization: str = Header(No
                 "user_id": user_id,
                 "updated_at": datetime.utcnow()
             }},
-            upsert=True  # creates the doc if it doesn't exist yet
+            upsert=True
         )
         return {"message": "Preferences updated successfully"}
     except HTTPException:
@@ -482,22 +467,15 @@ def update_preferences(update: PreferencesUpdate, authorization: str = Header(No
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ── History ───────────────────────────────────────────────────────────────────
-
 @app.get("/history")
 def get_history(authorization: str = Header(None)):
-    """Return user's review history + restaurants they added"""
     user_id = get_user_id(authorization)
     try:
         reviews = get_reviews_collection()
         restaurants = get_restaurants_collection()
-
-        # Get reviews by this user (match both string and ObjectId)
         review_query = dual_id_query("user_id", user_id)
         user_reviews = list(reviews.find(review_query).sort("created_at", -1).limit(50))
-
         history_items = []
-
         for r in user_reviews:
             rid = str(r["restaurant_id"]) if isinstance(r["restaurant_id"], ObjectId) else r["restaurant_id"]
             try:
@@ -505,7 +483,6 @@ def get_history(authorization: str = Header(None)):
                 restaurant_name = restaurant["name"] if restaurant else "Unknown Restaurant"
             except Exception:
                 restaurant_name = "Unknown Restaurant"
-
             history_items.append({
                 "type": "review",
                 "review_id": str(r["_id"]),
@@ -515,7 +492,6 @@ def get_history(authorization: str = Header(None)):
                 "comment": r.get("comment"),
                 "created_at": r["created_at"].isoformat() if isinstance(r.get("created_at"), datetime) else str(r.get("created_at"))
             })
-
         return {"history": history_items}
     except HTTPException:
         raise
