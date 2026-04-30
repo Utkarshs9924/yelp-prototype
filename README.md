@@ -526,7 +526,7 @@ aws ecr get-login-password --region us-east-2 | \
 ## 👥 Team Contributions
 
 **Utkarsh Sharma:**
-- Kafka producer/consumer implementation (P7)
+- Kafka producer/consumer implementation
 - MongoDB migration and schema design
 - Docker & Kubernetes configuration
 - AWS EKS deployment
