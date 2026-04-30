@@ -137,17 +137,14 @@ async def chat_endpoint(data: ChatMessage, user: dict = Depends(get_current_user
             except Exception as e:
                 print(f"Failed to initialize Tavily: {e}")
 
-        tool_names = ", ".join([t.name for t in tools])
-        tool_descriptions = "\n".join([f"{t.name}: {t.description}" for t in tools])
-
         prompt = PromptTemplate.from_template(
             "You are Yelp Assistant, a helpful restaurant discovery AI.\n"
             f"User preferences: {safe_prefs}\n\n"
             "You have access to these tools:\n"
-            f"{tool_descriptions}\n\n"
+            "{tools}\n\n"
             "Use this exact format:\n"
             "Thought: think about what to do\n"
-            "Action: tool name (must be one of: " + tool_names + ")\n"
+            "Action: tool name (must be one of: {tool_names})\n"
             "Action Input: input string for the tool\n"
             "Observation: tool result\n"
             "... (you may repeat Thought/Action/Observation)\n"
