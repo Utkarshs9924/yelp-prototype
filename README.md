@@ -26,48 +26,57 @@
 
 ## 🏗️ Architecture Overview
 
-### Microservices Architecture
+### Producer → Kafka → Consumer Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                     Frontend (React + Redux)                         │
-│                       Port: 80 (nginx)                               │
-└──────┬──────────────┬──────────────┬──────────────┬─────────────────┘
-       │              │              │              │
-┌──────▼──────┐ ┌─────▼──────┐ ┌────▼──────┐ ┌────▼──────┐ ┌────────────┐
-│  User API   │ │Restaurant  │ │Review API │ │ Owner API │ │  Backend   │
-│ (Producer)  │ │API(Producer│ │(Producer) │ │(Producer) │ │(AI/Admin)  │
-│  Port: 8001 │ │Port: 8002  │ │Port: 8003 │ │Port: 8004 │ │Port: 8000  │
-└──────┬──────┘ └─────┬──────┘ └────┬──────┘ └───────────┘ └────────────┘
-       │              │              │
-       └──────────────┼──────────────┘
-                      │
-         ┌────────────▼────────────┐
-         │    Kafka Message Queue  │
-         │  (Zookeeper + Kafka)    │
-         │      Port: 29092        │
-         └────────────┬────────────┘
-                      │
-       ┌──────────────┼──────────────┐
-       │              │              │
-┌──────▼──────┐ ┌─────▼──────┐ ┌────▼──────┐
-│ User Worker │ │Restaurant  │ │Review     │
-│ (Consumer)  │ │Worker      │ │Worker     │
-│             │ │(Consumer)  │ │(Consumer) │
-└──────┬──────┘ └─────┬──────┘ └────┬──────┘
-       │              │              │
-       └──────────────┼──────────────┘
-                      │
-         ┌────────────▼────────────┐
-         │      MongoDB Atlas      │
-         │    (Cloud Database)     │
-         └────────────┬────────────┘
-                      │
-         ┌────────────▼────────────┐
-         │        AWS S3           │
-         │    (Photo Storage)      │
-         │   yelp-lab2-photos      │
-         └─────────────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│                  Frontend (React + Redux)                  │
+│                      Port: 80 (nginx)                      │
+└──────┬───────────┬───────────┬───────────┬────────────────┘
+       │           │           │           │
+┌──────▼─────┐ ┌───▼──────┐ ┌──▼──────┐ ┌─▼────────┐ ┌──────────┐
+│  User API  │ │Restaurant│ │Review   │ │Owner API │ │ Backend  │
+│ (Producer) │ │API       │ │API      │ │(Producer)│ │(AI/Admin)│
+│ Port: 8001 │ │(Producer)│ │(Producer│ │Port: 8004│ │Port: 8000│
+│            │ │Port: 8002│ │Port:8003│ │          │ │          │
+└──────┬─────┘ └───┬──────┘ └──┬──────┘ └──────────┘ └──────────┘
+       │           │           │
+       └───────────┼───────────┘
+                   │ publish events
+                   ▼
+     ┌─────────────────────────────────┐
+     │           Kafka API             │
+     │─────────────────────────────────│
+     │  Topic: review.created          │
+     │  Topic: review.updated          │
+     │  Topic: review.deleted          │
+     │  Topic: restaurant.created      │
+     │  Topic: restaurant.updated      │
+     │  Topic: restaurant.claimed      │
+     │  Topic: user.created            │
+     │  Topic: user.updated            │
+     │  Topic: user.login              │
+     └─────────────────────────────────┘
+                   │ consume events
+       ┌───────────┼───────────┐
+       │           │           │
+┌──────▼─────┐ ┌───▼──────┐ ┌──▼──────┐
+│User Worker │ │Restaurant│ │Review   │
+│ (Consumer) │ │Worker    │ │Worker   │
+│            │ │(Consumer)│ │(Consumer│
+└──────┬─────┘ └───┬──────┘ └──┬──────┘
+       │           │           │
+       └───────────┼───────────┘
+                   │
+      ┌────────────▼────────────┐
+      │      MongoDB Atlas      │
+      │    (Cloud Database)     │
+      └────────────┬────────────┘
+                   │
+      ┌────────────▼────────────┐
+      │        AWS S3           │
+      │  bucket: yelp-lab2-photos│
+      └─────────────────────────┘
 ```
 
 ### Kafka Topics
@@ -141,7 +150,7 @@ eksctl create cluster \
 # Configure kubectl
 aws eks update-kubeconfig --region us-east-2 --name yelp-lab2-new
 
-# Create ECR repositories and push images
+# Create ECR repositories
 aws ecr create-repository --repository-name yelp-frontend --region us-east-2
 aws ecr create-repository --repository-name yelp-backend --region us-east-2
 aws ecr create-repository --repository-name yelp-user-api --region us-east-2
@@ -221,9 +230,8 @@ kubectl get services | grep frontend
 #### Owner API Service
 - **Port**: 8004
 - **Endpoints**: `/owner/dashboard`, `/owner/restaurants`
-- **Produces to**: owner-related events
 
-#### Backend (Monolith)
+#### Backend (AI + Admin)
 - **Port**: 8000
 - **Endpoints**: `/chat`, `/admin`
 - **Features**: AI chatbot (Groq + LangChain + Tavily), admin panel
@@ -231,16 +239,16 @@ kubectl get services | grep frontend
 ### Worker Services (Consumers)
 
 #### User Worker
-- **Consumes from**: `user.created`, `user.updated`, `user.login`
+- **Consumes**: `user.created`, `user.updated`, `user.login`
 - **Actions**: Log events, update analytics
 
 #### Restaurant Worker
-- **Consumes from**: `restaurant.created`, `restaurant.updated`, `restaurant.claimed`
-- **Actions**: Update search index, sync metadata
+- **Consumes**: `restaurant.created`, `restaurant.updated`, `restaurant.claimed`
+- **Actions**: Update metadata, sync search index
 
 #### Review Worker
-- **Consumes from**: `review.created`, `review.updated`, `review.deleted`
-- **Actions**: Recalculate restaurant average rating and review count
+- **Consumes**: `review.created`, `review.updated`, `review.deleted`
+- **Actions**: Recalculate restaurant average rating and review count in MongoDB
 
 ---
 
@@ -305,7 +313,7 @@ kubectl get services | grep frontend
   _id: ObjectId,
   restaurant_id: String,
   user_id: String,
-  photo_url: String,          // Azure Blob or S3 URL
+  photo_url: String,
   caption: String,
   created_at: Date
 }
@@ -399,8 +407,7 @@ Located in `/jmeter-tests/`:
 ### Running Tests
 
 ```bash
-# Install JMeter first: https://jmeter.apache.org/download_jmeter.cgi
-
+# Install JMeter: https://jmeter.apache.org/download_jmeter.cgi
 cd jmeter-tests
 jmeter -n -t yelp_lab2_test.jmx -l results.jtl -e -o results/
 ```
@@ -416,7 +423,7 @@ jmeter -n -t yelp_lab2_test.jmx -l results.jtl -e -o results/
 - **PyJWT** - JWT authentication
 - **bcrypt** - Password hashing
 - **boto3** - AWS S3 integration
-- **LangChain + Groq** - AI chatbot
+- **LangChain + Groq** - AI chatbot (llama-3.1-8b-instant)
 - **Tavily** - Real-time web search for AI
 
 ### Frontend
@@ -425,16 +432,14 @@ jmeter -n -t yelp_lab2_test.jmx -l results.jtl -e -o results/
 - **TailwindCSS** - Styling
 - **Vite** - Build tool
 - **Axios** - HTTP client
-- **React Router** - Navigation
 
 ### Infrastructure
 - **Docker** - Containerization
 - **Kubernetes (EKS)** - Container orchestration
-- **AWS EKS** - Managed Kubernetes cluster (us-east-2)
+- **AWS EKS** - Managed Kubernetes (us-east-2, t3.medium nodes)
 - **AWS ECR** - Container registry (account: 425449348496)
 - **AWS S3** - Photo storage (bucket: yelp-lab2-photos, us-east-2)
 - **MongoDB Atlas** - Managed database (yelp_db)
-- **Azure Blob Storage** - Restaurant fallback images
 
 ---
 
@@ -447,60 +452,29 @@ yelp-prototype/
 │   ├── kafka/                  # Kafka producer/consumer base classes
 │   └── utils/                  # S3 storage utilities
 ├── services/                   # Microservices
-│   ├── user-api/               # User API + Dockerfile
-│   ├── user-worker/            # User Kafka consumer + Dockerfile
-│   ├── restaurant-api/         # Restaurant API + Dockerfile
-│   ├── restaurant-worker/      # Restaurant Kafka consumer + Dockerfile
-│   ├── review-api/             # Review API + Dockerfile
-│   ├── review-worker/          # Review Kafka consumer + Dockerfile
-│   └── owner-api/              # Owner API + Dockerfile
-├── backend/                    # Monolith backend (AI chat, admin)
+│   ├── user-api/
+│   ├── user-worker/
+│   ├── restaurant-api/
+│   ├── restaurant-worker/
+│   ├── review-api/
+│   ├── review-worker/
+│   └── owner-api/
+├── backend/                    # Monolith (AI chat, admin)
 │   ├── routes/
-│   │   ├── chat.py             # AI chatbot (Groq + LangChain + Tavily)
-│   │   └── admin.py            # Admin panel routes
+│   │   ├── chat.py
+│   │   └── admin.py
 │   └── Dockerfile
 ├── frontend/                   # React frontend
 │   ├── src/
-│   │   ├── redux/              # Redux store and slices
-│   │   │   └── slices/
-│   │   │       ├── authSlice.js
-│   │   │       ├── restaurantsSlice.js
-│   │   │       ├── reviewsSlice.js
-│   │   │       └── favoritesSlice.js
-│   │   ├── components/         # Reusable components
-│   │   │   ├── ChatBot.jsx     # AI assistant widget
-│   │   │   ├── RestaurantCard.jsx
-│   │   │   └── StarRating.jsx
-│   │   ├── pages/              # Page components
-│   │   │   ├── restaurant/
-│   │   │   │   ├── Explore.jsx
-│   │   │   │   └── RestaurantDetail.jsx
-│   │   │   └── user/
-│   │   │       ├── Profile.jsx
-│   │   │       ├── Preferences.jsx
-│   │   │       └── History.jsx
-│   │   └── services/
-│   │       └── api.js          # Axios API client
+│   │   ├── redux/slices/
+│   │   ├── components/
+│   │   ├── pages/
+│   │   └── services/api.js
 │   ├── Dockerfile
-│   └── nginx.conf              # Nginx reverse proxy config
+│   └── nginx.conf
 ├── k8s/                        # Kubernetes manifests
-│   ├── configmap.yaml
-│   ├── zookeeper.yaml
-│   ├── kafka.yaml
-│   ├── user-api.yaml
-│   ├── restaurant-api.yaml
-│   ├── review-api.yaml
-│   ├── owner-api.yaml
-│   ├── backend.yaml
-│   ├── frontend.yaml
-│   ├── user-worker.yaml
-│   ├── restaurant-worker.yaml
-│   └── review-worker.yaml
 ├── jmeter-tests/               # JMeter performance tests
-│   ├── yelp_lab2_test.jmx
-│   ├── yelp_performance_test.jmx
-│   └── test-data.csv
-├── docker-compose.yml          # Local development
+├── docker-compose.yml
 └── README.md
 ```
 
@@ -509,23 +483,14 @@ yelp-prototype/
 ## 🔐 Environment Variables
 
 ```bash
-# MongoDB
-MONGO_URI=mongodb+srv://...@yelp.wvxiqvo.mongodb.net/
+MONGO_URI=mongodb+srv://...
 DB_NAME=yelp_db
-
-# Kafka
 KAFKA_BOOTSTRAP_SERVERS=kafka:29092
-
-# AWS
+JWT_SECRET=your_jwt_secret
 AWS_REGION=us-east-2
 AWS_ACCESS_KEY_ID=your_key
 AWS_SECRET_ACCESS_KEY=your_secret
 S3_BUCKET_NAME=yelp-lab2-photos
-
-# Authentication
-JWT_SECRET=your_jwt_secret
-
-# AI
 GROQ_API_KEY=your_groq_key
 TAVILY_API_KEY=your_tavily_key
 ```
@@ -536,10 +501,10 @@ TAVILY_API_KEY=your_tavily_key
 
 ### Kafka Connection Issues
 ```bash
-# Check Kafka logs
+# Docker Compose
 docker-compose logs kafka
 
-# On EKS
+# EKS
 kubectl logs -l app=kafka --tail 50
 ```
 
@@ -551,7 +516,6 @@ kubectl logs <pod-name> --previous
 
 ### ECR Pull Issues
 ```bash
-# Re-authenticate with ECR
 aws ecr get-login-password --region us-east-2 | \
   docker login --username AWS --password-stdin \
   425449348496.dkr.ecr.us-east-2.amazonaws.com
@@ -567,7 +531,7 @@ aws ecr get-login-password --region us-east-2 | \
 - Docker & Kubernetes configuration
 - AWS EKS deployment
 - Review worker rating recalculation
-- AI chatbot integration (Groq + LangChain + Tavily)
+- AI chatbot (Groq + LangChain + Tavily)
 - JMeter performance testing
 
 **Akash Kumar:**
