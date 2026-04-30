@@ -28,3 +28,5 @@ dist/
 # Uploads
 uploads/
 extra_mock_data.sql
+jmeter-tests/*.jtl
+*.jtl
