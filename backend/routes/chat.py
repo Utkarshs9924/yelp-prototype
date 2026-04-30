@@ -177,7 +177,8 @@ async def chat_endpoint(data: ChatMessage, user: dict = Depends(get_current_user
             tools=tools,
             verbose=True,
             handle_parsing_errors=True,
-            max_iterations=4
+            max_iterations=6,
+            max_execution_time=60
         )
 
         result = agent_executor.invoke({"input": data.message})
