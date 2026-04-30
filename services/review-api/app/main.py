@@ -37,6 +37,7 @@ class ReviewCreate(BaseModel):
     user_id: str
     rating: int
     comment: Optional[str] = ""
+    photo_url: Optional[str] = None
 
 
 def serialize_doc(doc):
@@ -111,6 +112,7 @@ def create_review(review: ReviewCreate):
             "user_id": review.user_id,
             "rating": review.rating,
             "comment": review.comment,
+            "photo_url": review.photo_url,
             "created_at": datetime.utcnow(),
             "updated_at": datetime.utcnow()
         }
