@@ -11,7 +11,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 from fastapi import FastAPI, HTTPException, Header, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, Any
 from common.kafka import get_producer
 from common.database import (
     get_restaurants_collection, get_reviews_collection,
@@ -101,9 +101,12 @@ class RestaurantCreate(BaseModel):
 
 
 class PreferencesUpdate(BaseModel):
-    cuisine_preferences: Optional[str] = None
+    cuisine_preferences: Optional[Any] = None
     price_range: Optional[str] = None
-    dietary_needs: Optional[str] = None
+    preferred_locations: Optional[Any] = None
+    search_radius: Optional[int] = None
+    dietary_needs: Optional[Any] = None
+    ambiance_preferences: Optional[Any] = None
     ambiance_preference: Optional[str] = None
     sort_preference: Optional[str] = None
 
