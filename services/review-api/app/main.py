@@ -223,7 +223,7 @@ def update_review(review_id: str, update: ReviewCreate):
 
 
 @app.delete("/reviews/{review_id}")
-def delete_review(review_id: str, restaurant_id: str):
+def delete_review(review_id: str, restaurant_id: Optional[str] = None):
     try:
         reviews = get_reviews_collection()
 
