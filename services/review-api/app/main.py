@@ -227,6 +227,13 @@ def delete_review(review_id: str, restaurant_id: Optional[str] = None):
     try:
         reviews = get_reviews_collection()
 
+        # Look up restaurant_id from review before deleting
+        if not restaurant_id:
+            review = reviews.find_one({"_id": ObjectId(review_id)})
+            if review:
+                rid = review.get("restaurant_id")
+                restaurant_id = str(rid) if isinstance(rid, ObjectId) else rid
+
         result = reviews.delete_one({"_id": ObjectId(review_id)})
 
         if result.deleted_count == 0:
