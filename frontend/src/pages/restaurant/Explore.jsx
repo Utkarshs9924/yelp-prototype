@@ -404,7 +404,7 @@ export default function Explore() {
               <select
                 className="filter-select"
                 value={selectedCuisine}
-                onChange={(e) => { setSelectedCuisine(e.target.value); fetchRestaurants(1); }}
+                onChange={(e) => setSelectedCuisine(e.target.value)}
               >
                 <option value="">All Cuisines</option>
                 <option value="American">American</option>
@@ -427,7 +427,6 @@ export default function Explore() {
                     onClick={() => {
                       const next = selectedPrice === tier ? '' : tier;
                       setSelectedPrice(next);
-                      fetchRestaurants(1);
                     }}
                   >
                     {'$'.repeat(parseInt(tier))}
@@ -445,7 +444,6 @@ export default function Explore() {
                         ? selectedAmenities.filter(a => a !== amenity)
                         : [...selectedAmenities, amenity];
                       setSelectedAmenities(next);
-                      fetchRestaurants(1);
                     }}
                   >
                     {amenity}
