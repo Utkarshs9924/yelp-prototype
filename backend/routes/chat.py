@@ -134,7 +134,7 @@ async def chat_endpoint(data: ChatMessage, user: dict = Depends(get_current_user
             except Exception:
                 pass
 
-        prefs_str = json.dumps(prefs) if prefs else "No specific preferences saved."
+        prefs_str = json.dumps(prefs, default=str) if prefs else "No specific preferences saved."
         safe_prefs = prefs_str.replace("{", "{{").replace("}", "}}")
 
         llm = ChatGroq(
