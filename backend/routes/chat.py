@@ -147,7 +147,7 @@ async def chat_endpoint(data: ChatMessage, user: dict = Depends(get_current_user
         tavily_key = os.getenv("TAVILY_API_KEY")
         if tavily_key and "YourAPIKeyHere" not in tavily_key:
             try:
-                tavily_tool = TavilySearchResults(k=3)
+                tavily_tool = TavilySearchResults(k=2)
                 tools.append(tavily_tool)
             except Exception as e:
                 print(f"Failed to initialize Tavily: {e}")
@@ -164,7 +164,7 @@ async def chat_endpoint(data: ChatMessage, user: dict = Depends(get_current_user
             "Action: tool name (must be one of: {tool_names})\n"
             "Action Input: input string for the tool\n"
             "Observation: tool result\n"
-            "... (you may repeat Thought/Action/Observation)\n"
+            "... (use each tool maximum once)\n"
             "Thought: I now have enough to answer\n"
             "Final Answer: your helpful conversational response\n\n"
             "Question: {input}\n"
