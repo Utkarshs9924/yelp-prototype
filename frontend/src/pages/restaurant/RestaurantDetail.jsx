@@ -1,13 +1,15 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { FaHeart, FaRegHeart, FaMapMarkerAlt, FaPhone, FaEnvelope, FaGlobe, FaEdit, FaTrash, FaUtensils, FaCamera, FaTimesCircle, FaChevronLeft, FaChevronRight } from 'react-icons/fa';
-import { restaurantAPI, reviewAPI, favouriteAPI, photoAPI } from '../../services/api';
+import { useDispatch, useSelector } from 'react-redux';
+import { fetchReviews, createReview, updateReview, deleteReview, clearReviews } from '../../redux/slices/reviewsSlice';
+import { fetchFavorites, addFavorite, removeFavorite } from '../../redux/slices/favoritesSlice';
+import { restaurantAPI, reviewAPI, photoAPI } from '../../services/api';
 import { useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import StarRating from '../../components/StarRating';
 import toast from 'react-hot-toast';
 
-// ✅ Verified IDs — same as RestaurantCard.jsx which already works
 const ADLS_BASE = 'https://yelpclonephotos.blob.core.windows.net/restaurant-photos';
 
 const CUISINE_ASSET_MAP = {
@@ -17,8 +19,6 @@ const CUISINE_ASSET_MAP = {
   'Japanese': 'sushi_platter_review_photo_2_1774302757257.png',
   'Sushi': 'sushi_platter_review_photo_2_1774302757257.png',
   'Chinese': 'dim_sum_review_photo_6_1774302824990.png',
-  'Thai': 'dim_sum_review_photo_6_1774302824990.png',
-  'Burger': 'gourmet_burger_review_photo_1_1774302742382.png',
   'Thai': 'dim_sum_review_photo_6_1774302824990.png',
   'Indian': 'indian_curry_review_photo_8_1774302851319.png',
   'Seafood': 'sushi_platter_review_photo_2_1774302757257.png',
@@ -49,11 +49,18 @@ function getFallbackImage(cuisineType, name) {
 export default function RestaurantDetail() {
   const { restaurant_id } = useParams();
   const navigate = useNavigate();
+  const dispatch = useDispatch();
   const { user, token } = useAuth();
+
+  // ── Redux state ──
+  const reviews = useSelector((state) => state.reviews.list);
+  const reviewsLoading = useSelector((state) => state.reviews.loading);
+  const favoriteIds = useSelector((state) => state.favorites.favoriteIds);
+  const isFavourite = favoriteIds.includes(restaurant_id);
+
+  // ── Local state ──
   const [restaurant, setRestaurant] = useState(null);
-  const [reviews, setReviews] = useState([]);
   const [menuItems, setMenuItems] = useState([]);
-  const [isFavourite, setIsFavourite] = useState(false);
   const [loading, setLoading] = useState(true);
   const [favLoading, setFavLoading] = useState(false);
   const [reviewRating, setReviewRating] = useState(0);
@@ -71,7 +78,7 @@ export default function RestaurantDetail() {
 
   const canDeletePhotos = user && (user.role === 'admin' || user.role === 'business_owner');
   const userReview = reviews.find((r) => r.user_id === user?.id || r.user?.id === user?.id);
-  
+
   const handlePrevPhoto = (e) => {
     e.stopPropagation();
     if (!selectedPhoto || userPhotos.length <= 1) return;
@@ -93,33 +100,12 @@ export default function RestaurantDetail() {
     try {
       const { data } = await restaurantAPI.get(restaurant_id);
       setRestaurant(data);
-      // Synchronize user photos for navigation
       setUserPhotos(data.user_photos || []);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Restaurant not found');
       navigate('/');
     }
   }, [restaurant_id, navigate]);
-
-  const fetchReviews = useCallback(async () => {
-    if (!restaurant_id) return;
-    try {
-      const { data } = await reviewAPI.getForRestaurant(restaurant_id);
-      setReviews(Array.isArray(data) ? data : data?.reviews ?? []);
-    } catch {
-      setReviews([]);
-    }
-  }, [restaurant_id]);
-
-  const checkFavourite = useCallback(async () => {
-    if (!restaurant_id || !token) return;
-    try {
-      const { data } = await favouriteAPI.check(restaurant_id);
-      setIsFavourite(data?.is_favourite ?? data ?? false);
-    } catch {
-      setIsFavourite(false);
-    }
-  }, [restaurant_id, token]);
 
   const fetchMenu = useCallback(async () => {
     if (!restaurant_id) return;
@@ -138,11 +124,16 @@ export default function RestaurantDetail() {
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      await Promise.all([fetchRestaurant(), fetchReviews(), checkFavourite(), fetchMenu()]);
+      // Dispatch Redux actions for reviews and favorites
+      dispatch(fetchReviews(restaurant_id));
+      if (token) dispatch(fetchFavorites());
+      await Promise.all([fetchRestaurant(), fetchMenu()]);
       setLoading(false);
     };
     load();
-  }, [fetchRestaurant, fetchReviews, checkFavourite, fetchMenu]);
+    // Clear reviews on unmount
+    return () => dispatch(clearReviews());
+  }, [restaurant_id, token, dispatch, fetchRestaurant, fetchMenu]);
 
   const toggleFavourite = async () => {
     if (!token) {
@@ -153,16 +144,14 @@ export default function RestaurantDetail() {
     setFavLoading(true);
     try {
       if (isFavourite) {
-        await favouriteAPI.remove(restaurant_id);
-        setIsFavourite(false);
+        await dispatch(removeFavorite(restaurant_id)).unwrap();
         toast.success('Removed from favourites');
       } else {
-        await favouriteAPI.add(restaurant_id);
-        setIsFavourite(true);
+        await dispatch(addFavorite(restaurant_id)).unwrap();
         toast.success('Added to favourites');
       }
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to update favourite');
+      toast.error('Failed to update favourite');
     } finally {
       setFavLoading(false);
     }
@@ -186,21 +175,21 @@ export default function RestaurantDetail() {
         const { data: uploadRes } = await reviewAPI.uploadPhoto(reviewFile);
         photo_url = uploadRes.photo_url;
       }
-      await reviewAPI.create({
-        restaurant_id: restaurant_id,
-        user_id: user.id,
+      await dispatch(createReview({
+        restaurantId: restaurant_id,
+        userId: user.id,
         rating: reviewRating,
         comment: reviewComment.trim() || '',
         photo_url,
-      });
+      })).unwrap();
       toast.success('Review submitted!');
       setReviewRating(0);
       setReviewComment('');
       setReviewFile(null);
-      fetchReviews();
+      dispatch(fetchReviews(restaurant_id));
       fetchRestaurant();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to submit review');
+      toast.error('Failed to submit review');
     } finally {
       setSubmitting(false);
     }
@@ -223,19 +212,20 @@ export default function RestaurantDetail() {
     setSubmitting(true);
     try {
       const reviewToEdit = reviews.find(r => r.id === editingReviewId);
-      await reviewAPI.update(editingReviewId, {
-        restaurant_id: restaurant_id,
-        user_id: user.id,
+      await dispatch(updateReview({
+        reviewId: editingReviewId,
+        restaurantId: restaurant_id,
+        userId: user.id,
         rating: reviewToEdit?.rating ?? 1,
         comment: editComment.trim(),
-      });
+      })).unwrap();
       toast.success('Review updated');
       setEditingReviewId(null);
       setEditComment('');
-      fetchReviews();
+      dispatch(fetchReviews(restaurant_id));
       fetchRestaurant();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to update review');
+      toast.error('Failed to update review');
     } finally {
       setSubmitting(false);
     }
@@ -245,12 +235,12 @@ export default function RestaurantDetail() {
     if (!window.confirm('Delete this review?')) return;
     setSubmitting(true);
     try {
-      await reviewAPI.delete(reviewId);
+      await dispatch(deleteReview({ reviewId, restaurantId: restaurant_id })).unwrap();
       toast.success('Review deleted');
-      fetchReviews();
+      dispatch(fetchReviews(restaurant_id));
       fetchRestaurant();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to delete review');
+      toast.error('Failed to delete review');
     } finally {
       setSubmitting(false);
     }
@@ -280,7 +270,7 @@ export default function RestaurantDetail() {
       <div className="max-w-5xl mx-auto px-4 py-6">
         <header className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-6">
 
-          {/* ── Hero Image (Simplified) ── */}
+          {/* ── Hero Image ── */}
           <div className="aspect-[21/9] overflow-hidden bg-gray-100 relative">
             <img
               src={photos.length > 0 ? photos[0] : heroFallback}
@@ -481,12 +471,11 @@ export default function RestaurantDetail() {
                 )}
               </div>
             )}
-            
+
             {/* Photos Tab */}
             {activeTab === 'photos' && (
               <div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                  {/* Official Photos */}
                   {photos.map((url, i) => (
                     <div key={`official-${i}`} className="aspect-square rounded-lg overflow-hidden border border-gray-100 group relative">
                       <img src={url} alt="Official" className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform" onClick={() => window.open(url, '_blank')} />
@@ -511,14 +500,13 @@ export default function RestaurantDetail() {
                       )}
                     </div>
                   ))}
-                  {/* User Photos */}
                   {userPhotosList.map((p, i) => (
                     <div key={`user-${i}`} className="aspect-square rounded-lg overflow-hidden border border-gray-100 group relative">
-                      <img 
-                        src={p.photo_url} 
-                        alt={p.caption} 
-                        className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform" 
-                        onClick={() => setSelectedPhoto(p)} 
+                      <img
+                        src={p.photo_url}
+                        alt={p.caption}
+                        className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform"
+                        onClick={() => setSelectedPhoto(p)}
                       />
                       <div className="absolute bottom-0 left-0 right-0 bg-black/40 text-white text-[10px] p-1 truncate opacity-0 group-hover:opacity-100 transition-opacity">
                         {p.caption || 'User Photo'}
@@ -530,25 +518,16 @@ export default function RestaurantDetail() {
                   <p className="text-gray-500 text-center py-8">No photos yet.</p>
                 )}
 
-                {/* Photo Context Modal */}
                 {selectedPhoto && (
                   <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setSelectedPhoto(null)}>
                     <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col md:flex-row shadow-2xl" onClick={e => e.stopPropagation()}>
                       <div className="flex-1 bg-gray-900 flex items-center justify-center p-2 relative group">
                         {userPhotosList.length > 1 && (
                           <>
-                            <button 
-                              onClick={handlePrevPhoto}
-                              className="absolute left-4 p-3 rounded-full bg-white/20 text-white hover:bg-white/40 transition-all z-20 backdrop-blur-md border border-white/30 active:scale-90"
-                              title="Previous Photo"
-                            >
+                            <button onClick={handlePrevPhoto} className="absolute left-4 p-3 rounded-full bg-white/20 text-white hover:bg-white/40 transition-all z-20 backdrop-blur-md border border-white/30 active:scale-90">
                               <FaChevronLeft size={24} />
                             </button>
-                            <button 
-                              onClick={handleNextPhoto}
-                              className="absolute right-4 p-3 rounded-full bg-white/20 text-white hover:bg-white/40 transition-all z-20 backdrop-blur-md border border-white/30 active:scale-90"
-                              title="Next Photo"
-                            >
+                            <button onClick={handleNextPhoto} className="absolute right-4 p-3 rounded-full bg-white/20 text-white hover:bg-white/40 transition-all z-20 backdrop-blur-md border border-white/30 active:scale-90">
                               <FaChevronRight size={24} />
                             </button>
                           </>
@@ -557,26 +536,23 @@ export default function RestaurantDetail() {
                       </div>
                       <div className="w-full md:w-80 p-6 flex flex-col border-l border-gray-100 bg-gray-50/50">
                         <div className="flex justify-between items-start mb-6">
-                            <h3 className="text-xl font-bold text-gray-900">Review Context</h3>
-                            <button onClick={() => setSelectedPhoto(null)} className="text-gray-400 hover:text-gray-600 transition-colors">
-                                <FaTimesCircle size={24} />
-                            </button>
+                          <h3 className="text-xl font-bold text-gray-900">Review Context</h3>
+                          <button onClick={() => setSelectedPhoto(null)} className="text-gray-400 hover:text-gray-600 transition-colors">
+                            <FaTimesCircle size={24} />
+                          </button>
                         </div>
-                        
                         {selectedPhoto.user_name ? (
                           <>
                             <div className="mb-4">
-                                <span className="text-sm font-bold text-gray-500 uppercase tracking-wider">Posted by</span>
-                                <div className="flex items-center gap-3">
-                                    <p className="text-lg font-semibold text-gray-900">{selectedPhoto.user_name}</p>
-                                    <StarRating rating={selectedPhoto.rating || 0} size="sm" />
-                                </div>
+                              <span className="text-sm font-bold text-gray-500 uppercase tracking-wider">Posted by</span>
+                              <div className="flex items-center gap-3">
+                                <p className="text-lg font-semibold text-gray-900">{selectedPhoto.user_name}</p>
+                                <StarRating rating={selectedPhoto.rating || 0} size="sm" />
+                              </div>
                             </div>
-                            <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
-                                <span className="text-sm font-bold text-gray-500 uppercase tracking-wider block mb-2">Review</span>
-                                <p className="text-gray-700 italic leading-relaxed">
-                                    "{selectedPhoto.comment || "No comment provided."}"
-                                </p>
+                            <div className="flex-1 overflow-y-auto pr-2">
+                              <span className="text-sm font-bold text-gray-500 uppercase tracking-wider block mb-2">Review</span>
+                              <p className="text-gray-700 italic leading-relaxed">"{selectedPhoto.comment || "No comment provided."}"</p>
                             </div>
                           </>
                         ) : (
@@ -584,18 +560,13 @@ export default function RestaurantDetail() {
                             <p className="text-gray-500 italic">Official restaurant photo</p>
                           </div>
                         )}
-                        
                         <div className="mt-auto pt-6 border-t border-gray-200">
-                           <button 
-                            onClick={() => {
-                                setSelectedPhoto(null);
-                                setActiveTab('reviews');
-                                // Could add scroll logic here if needed
-                            }}
+                          <button
+                            onClick={() => { setSelectedPhoto(null); setActiveTab('reviews'); }}
                             className="w-full bg-red-600 text-white rounded-xl py-3 font-bold hover:bg-red-700 transition-all shadow-md active:scale-95"
-                           >
+                          >
                             View All Reviews
-                           </button>
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -607,102 +578,110 @@ export default function RestaurantDetail() {
             {/* Reviews Tab */}
             {activeTab === 'reviews' && (
               <div>
-                {user && !userReview && (
-                  <form onSubmit={handleSubmitReview} className="mb-8 p-4 bg-gray-50 rounded-lg">
-                    <h3 className="font-semibold text-gray-900 mb-3">Write a Review</h3>
-                    <div className="flex items-center gap-2 mb-3">
-                      <StarRating rating={reviewRating} onRate={setReviewRating} size="lg" />
-                      <span className="text-sm text-gray-600">Your rating</span>
-                    </div>
-                    <textarea
-                      value={reviewComment}
-                      onChange={(e) => setReviewComment(e.target.value)}
-                      placeholder="Share your experience..."
-                      rows={4}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 mb-3"
-                    />
-                    <div className="flex items-center gap-4 mb-4">
-                      <input type="file" ref={reviewPhotoRef} onChange={(e) => setReviewFile(e.target.files[0])} className="hidden" accept="image/*" />
-                      <button type="button" onClick={() => reviewPhotoRef.current.click()} className="flex items-center gap-2 px-3 py-1.5 border border-gray-300 rounded-md text-sm hover:bg-gray-100">
-                        <FaCamera className="text-gray-500" />
-                        {reviewFile ? 'Change Photo' : 'Attach Photo'}
-                      </button>
-                      {reviewFile && <span className="text-xs text-gray-500 truncate max-w-[200px]">{reviewFile.name}</span>}
-                    </div>
-                    <button type="submit" disabled={submitting || reviewRating < 1} className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed">
-                      {submitting ? 'Submitting...' : 'Submit Review'}
-                    </button>
-                  </form>
-                )}
+                {reviewsLoading ? (
+                  <div className="flex justify-center py-8">
+                    <div className="animate-spin w-8 h-8 border-4 border-red-600 border-t-transparent rounded-full" />
+                  </div>
+                ) : (
+                  <>
+                    {user && !userReview && (
+                      <form onSubmit={handleSubmitReview} className="mb-8 p-4 bg-gray-50 rounded-lg">
+                        <h3 className="font-semibold text-gray-900 mb-3">Write a Review</h3>
+                        <div className="flex items-center gap-2 mb-3">
+                          <StarRating rating={reviewRating} onRate={setReviewRating} size="lg" />
+                          <span className="text-sm text-gray-600">Your rating</span>
+                        </div>
+                        <textarea
+                          value={reviewComment}
+                          onChange={(e) => setReviewComment(e.target.value)}
+                          placeholder="Share your experience..."
+                          rows={4}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 mb-3"
+                        />
+                        <div className="flex items-center gap-4 mb-4">
+                          <input type="file" ref={reviewPhotoRef} onChange={(e) => setReviewFile(e.target.files[0])} className="hidden" accept="image/*" />
+                          <button type="button" onClick={() => reviewPhotoRef.current.click()} className="flex items-center gap-2 px-3 py-1.5 border border-gray-300 rounded-md text-sm hover:bg-gray-100">
+                            <FaCamera className="text-gray-500" />
+                            {reviewFile ? 'Change Photo' : 'Attach Photo'}
+                          </button>
+                          {reviewFile && <span className="text-xs text-gray-500 truncate max-w-[200px]">{reviewFile.name}</span>}
+                        </div>
+                        <button type="submit" disabled={submitting || reviewRating < 1} className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                          {submitting ? 'Submitting...' : 'Submit Review'}
+                        </button>
+                      </form>
+                    )}
 
-                {!user && (
-                  <p className="mb-6 text-gray-500 text-sm">
-                    <Link to="/login" className="text-red-600 hover:underline">Log in</Link> to write a review.
-                  </p>
-                )}
+                    {!user && (
+                      <p className="mb-6 text-gray-500 text-sm">
+                        <Link to="/login" className="text-red-600 hover:underline">Log in</Link> to write a review.
+                      </p>
+                    )}
 
-                <div className="space-y-4">
-                  {reviews.length === 0 ? (
-                    <p className="text-gray-500">No reviews yet. Be the first to review!</p>
-                  ) : (
-                    reviews.map((review) => {
-                      const canManageReview = 
-                        user?.role === 'admin' || 
-                        (user?.role === 'owner' && restaurant?.owner_id === user?.id) ||
-                        (user?.id === review.user_id);
-                      
-                      const isEditing = editingReviewId === review.id;
-                      return (
-                        <article key={review.id} className="p-4 border border-gray-100 rounded-lg hover:bg-gray-50/50">
-                          {isEditing ? (
-                            <form onSubmit={handleUpdateReview}>
-                              <textarea value={editComment} onChange={(e) => setEditComment(e.target.value)} rows={3} className="w-full px-3 py-2 border border-gray-300 rounded-lg mb-2" />
-                              <div className="flex gap-2">
-                                <button type="submit" disabled={submitting} className="px-3 py-1 bg-red-600 text-white rounded text-sm">Save</button>
-                                <button type="button" onClick={() => { setEditingReviewId(null); setEditComment(''); }} className="px-3 py-1 border border-gray-300 rounded text-sm">Cancel</button>
-                              </div>
-                            </form>
-                          ) : (
-                            <>
-                              <div className="flex items-center justify-between gap-2">
-                                <div className="flex items-center gap-2">
-                                  <span className="font-medium text-gray-900">{review.user?.name ?? review.user_name ?? 'Anonymous'}</span>
-                                  <StarRating rating={review.rating ?? 0} size="sm" />
-                                </div>
-                                {canManageReview && (
+                    <div className="space-y-4">
+                      {reviews.length === 0 ? (
+                        <p className="text-gray-500">No reviews yet. Be the first to review!</p>
+                      ) : (
+                        reviews.map((review) => {
+                          const canManageReview =
+                            user?.role === 'admin' ||
+                            (user?.role === 'owner' && restaurant?.owner_id === user?.id) ||
+                            (user?.id === review.user_id);
+                          const isEditing = editingReviewId === review.id;
+                          return (
+                            <article key={review.id} className="p-4 border border-gray-100 rounded-lg hover:bg-gray-50/50">
+                              {isEditing ? (
+                                <form onSubmit={handleUpdateReview}>
+                                  <textarea value={editComment} onChange={(e) => setEditComment(e.target.value)} rows={3} className="w-full px-3 py-2 border border-gray-300 rounded-lg mb-2" />
                                   <div className="flex gap-2">
-                                    <button onClick={() => { setEditingReviewId(review.id); setEditComment(review.comment ?? ''); }} className="text-gray-500 hover:text-red-600 p-1" title="Edit"><FaEdit size={14} /></button>
-                                    <button onClick={() => handleDeleteReview(review.id)} disabled={submitting} className="text-gray-500 hover:text-red-600 p-1" title="Delete"><FaTrash size={14} /></button>
+                                    <button type="submit" disabled={submitting} className="px-3 py-1 bg-red-600 text-white rounded text-sm">Save</button>
+                                    <button type="button" onClick={() => { setEditingReviewId(null); setEditComment(''); }} className="px-3 py-1 border border-gray-300 rounded text-sm">Cancel</button>
                                   </div>
-                                )}
-                              </div>
-                              {review.photo_url ? (
-                                <div className="mt-3 flex gap-4 bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
-                                  <div className="w-24 h-24 rounded-lg overflow-hidden flex-shrink-0 cursor-pointer hover:opacity-90 transition-opacity"
-                                       onClick={() => setSelectedPhoto({ 
-                                           photo_url: review.photo_url, 
-                                           user_name: review.user?.name ?? review.user_name ?? 'Anonymous', 
-                                           comment: review.comment,
-                                           rating: review.rating
-                                       })}
-                                  >
-                                    <img src={review.photo_url} alt="Review media" className="w-full h-full object-cover" />
-                                  </div>
-                                  <div className="flex-1">
-                                    <p className="text-gray-700 text-sm leading-relaxed">{review.comment}</p>
-                                  </div>
-                                </div>
+                                </form>
                               ) : (
-                                review.comment && <p className="mt-2 text-gray-700 text-sm leading-relaxed">{review.comment}</p>
+                                <>
+                                  <div className="flex items-center justify-between gap-2">
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-medium text-gray-900">{review.user?.name ?? review.user_name ?? 'Anonymous'}</span>
+                                      <StarRating rating={review.rating ?? 0} size="sm" />
+                                    </div>
+                                    {canManageReview && (
+                                      <div className="flex gap-2">
+                                        <button onClick={() => { setEditingReviewId(review.id); setEditComment(review.comment ?? ''); }} className="text-gray-500 hover:text-red-600 p-1"><FaEdit size={14} /></button>
+                                        <button onClick={() => handleDeleteReview(review.id)} disabled={submitting} className="text-gray-500 hover:text-red-600 p-1"><FaTrash size={14} /></button>
+                                      </div>
+                                    )}
+                                  </div>
+                                  {review.photo_url ? (
+                                    <div className="mt-3 flex gap-4 bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
+                                      <div
+                                        className="w-24 h-24 rounded-lg overflow-hidden flex-shrink-0 cursor-pointer hover:opacity-90 transition-opacity"
+                                        onClick={() => setSelectedPhoto({
+                                          photo_url: review.photo_url,
+                                          user_name: review.user?.name ?? review.user_name ?? 'Anonymous',
+                                          comment: review.comment,
+                                          rating: review.rating
+                                        })}
+                                      >
+                                        <img src={review.photo_url} alt="Review media" className="w-full h-full object-cover" />
+                                      </div>
+                                      <div className="flex-1">
+                                        <p className="text-gray-700 text-sm leading-relaxed">{review.comment}</p>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    review.comment && <p className="mt-2 text-gray-700 text-sm leading-relaxed">{review.comment}</p>
+                                  )}
+                                  <p className="mt-3 text-[10px] text-gray-400 font-medium uppercase tracking-wider">{review.created_at ? new Date(review.created_at).toLocaleDateString() : ''}</p>
+                                </>
                               )}
-                              <p className="mt-3 text-[10px] text-gray-400 font-medium uppercase tracking-wider">{review.created_at ? new Date(review.created_at).toLocaleDateString() : ''}</p>
-                            </>
-                          )}
-                        </article>
-                      );
-                    })
-                  )}
-                </div>
+                            </article>
+                          );
+                        })
+                      )}
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </div>
