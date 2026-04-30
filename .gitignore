@@ -30,3 +30,5 @@ uploads/
 extra_mock_data.sql
 jmeter-tests/*.jtl
 *.jtl
+*.jtl
+yelp_lab2_test.jmx
