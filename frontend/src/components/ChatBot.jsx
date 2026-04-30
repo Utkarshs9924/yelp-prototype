@@ -15,26 +15,34 @@ const QUICK_ACTIONS = [
 function ChatRestaurantCard({ restaurant, onMinimize }) {
   const { id, name, cuisine_type, city, pricing_tier, average_rating = 0, photos } = restaurant || {};
 
-  const CUISINE_IMAGE_MAP = {
-    'Pizza': '1513104890138-7c749659a591',
-    'Mexican': '1504674900247-0877df9cc836',
-    'Italian': '1501339847302-ac426a4a7cbb',
-    'Japanese': '1580822184713-fc5400e7fe10',
-    'Chinese': '1540189549336-e6e99c3679fe',
-    'American': '1550966871-3ed3cdb5ed0c',
-    'Thai': '1559314809-0d155014e29e',
-    'Indian': '1517248135467-4c7edcad34c4',
-    'Vegan': '1512621776951-a57141f2eefd',
+  const ADLS_BASE = 'https://yelpclonephotos.blob.core.windows.net/restaurant-photos';
+  const CUISINE_ASSET_MAP = {
+    'Pizza': 'traditional_pasta_review_photo_3_1774302771097.png',
+    'Mexican': 'tacos_platter_review_photo_4_1774302786282.png',
+    'Italian': 'traditional_pasta_review_photo_3_1774302771097.png',
+    'Japanese': 'sushi_platter_review_photo_2_1774302757257.png',
+    'Sushi': 'sushi_platter_review_photo_2_1774302757257.png',
+    'Chinese': 'dim_sum_review_photo_6_1774302824990.png',
+    'Thai': 'dim_sum_review_photo_6_1774302824990.png',
+    'Burger': 'gourmet_burger_review_photo_1_1774302742382.png',
+    'Indian': 'indian_curry_review_photo_8_1774302851319.png',
+    'Seafood': 'sushi_platter_review_photo_2_1774302757257.png',
+    'American': 'gourmet_burger_review_photo_1_1774302742382.png',
+    'Steakhouse': 'steak_dinner_review_photo_5_1774302802504.png',
+    'Bakery': 'avocado_toast_review_photo_7_1774302837757.png',
+    'Cafe': 'avocado_toast_review_photo_7_1774302837757.png',
   };
-  const GENERIC = ['1546069901-ba9599a7e63c', '1519708227418-c8fd9a32b7a2'];
-  const getImg = () => {
-    const key = Object.keys(CUISINE_IMAGE_MAP).find(k =>
-      `${cuisine_type} ${name}`.toLowerCase().includes(k.toLowerCase())
-    );
-    const imgId = key ? CUISINE_IMAGE_MAP[key] : GENERIC[0];
-    return `https://images.unsplash.com/photo-${imgId}?auto=format&fit=crop&w=200&q=80`;
+  const FALLBACK = `${ADLS_BASE}/gourmet_burger_review_photo_1_1774302742382.png`;
+
+  const getCuisineImage = () => {
+    const combined = `${cuisine_type || ''} ${name || ''}`.toLowerCase();
+    for (const [key, asset] of Object.entries(CUISINE_ASSET_MAP)) {
+      if (combined.includes(key.toLowerCase())) return `${ADLS_BASE}/${asset}`;
+    }
+    return FALLBACK;
   };
-  const imageUrl = photos?.length > 0 ? photos[0] : getImg();
+
+  const imageUrl = photos?.length > 0 ? photos[0] : getCuisineImage();
   const priceDisplay = pricing_tier ? '$'.repeat(Number(pricing_tier) || 1) : null;
 
   return (
@@ -44,7 +52,8 @@ function ChatRestaurantCard({ restaurant, onMinimize }) {
       className="flex gap-2 p-2 bg-white rounded-lg border border-gray-100 hover:border-red-200 hover:shadow-sm transition-all"
     >
       <div className="w-12 h-12 flex-shrink-0 rounded-md overflow-hidden bg-gray-200">
-        <img src={imageUrl} alt={name} className="w-full h-full object-cover" />
+        <img src={imageUrl} alt={name} className="w-full h-full object-cover"
+          onError={(e) => { e.target.src = FALLBACK; }} />
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold text-gray-900 truncate">{name}</p>
