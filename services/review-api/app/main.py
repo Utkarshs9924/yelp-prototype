@@ -7,12 +7,13 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
 from common.kafka import get_producer
 from common.database import get_reviews_collection, get_restaurants_collection, get_users_collection
+from common.utils.s3_storage import upload_to_s3
 from bson import ObjectId
 from datetime import datetime
 import logging
@@ -60,7 +61,6 @@ def restaurant_id_query(restaurant_id: str) -> dict:
 
 
 def get_user_name(user_id: str) -> str:
-    """Look up user name from users collection"""
     try:
         users = get_users_collection()
         user = None
@@ -78,6 +78,24 @@ def get_user_name(user_id: str) -> str:
 @app.get("/")
 def root():
     return {"service": "Review API", "status": "running"}
+
+
+@app.post("/reviews/upload-photo")
+async def upload_review_photo(
+    file: UploadFile = File(...),
+    authorization: str = Header(None)
+):
+    """Upload a photo for a review to S3"""
+    try:
+        contents = await file.read()
+        photo_url = await upload_to_s3(
+            contents, file.filename, file.content_type, folder="review-photos"
+        )
+        logger.info(f"✅ Review photo uploaded: {photo_url}")
+        return {"photo_url": photo_url}
+    except Exception as e:
+        logger.error(f"❌ Review photo upload error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/reviews")
@@ -133,7 +151,6 @@ def get_restaurant_reviews(restaurant_id: str):
         query = restaurant_id_query(restaurant_id)
         review_list = list(reviews.find(query).sort("created_at", -1))
 
-        # Build user name cache to avoid repeated DB lookups
         user_id_set = set()
         for r in review_list:
             uid = r.get("user_id")
