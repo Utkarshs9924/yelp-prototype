@@ -9,8 +9,7 @@ from pymongo.server_api import ServerApi
 from bson import ObjectId
 from datetime import datetime
 
-# Langchain imports
-from langchain_openai import AzureChatOpenAI
+from langchain_groq import ChatGroq
 from langchain_community.tools.tavily_search import TavilySearchResults
 from langchain.agents import AgentExecutor, create_openai_functions_agent
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
@@ -22,7 +21,6 @@ class ChatMessage(BaseModel):
     message: str
     conversation_history: List[Dict[str, Any]] = []
 
-# MongoDB connection
 MONGO_URI = os.getenv("MONGO_URI", "mongodb+srv://akashkumarsenthilkumar_db_user:mTnLH54vQAmmNjir@yelp.wvxiqvo.mongodb.net/?retryWrites=true&w=majority&appName=yelp")
 DB_NAME = os.getenv("DB_NAME", "yelp_db")
 
@@ -31,16 +29,14 @@ def get_mongo_db():
     return client[DB_NAME]
 
 def serialize_restaurant(r):
-    """Convert MongoDB doc to JSON-serializable dict"""
     r["id"] = str(r.pop("_id"))
-    for k, v in r.items():
+    for k, v in list(r.items()):
         if isinstance(v, ObjectId):
             r[k] = str(v)
         elif isinstance(v, datetime):
             r[k] = v.isoformat()
     return r
 
-# Store restaurants found during current request
 found_restaurants_store = []
 
 
@@ -55,9 +51,6 @@ def search_local_restaurants(query: str) -> str:
         db = get_mongo_db()
         restaurants = db['restaurants']
 
-        # Build text search query from the user's query words
-        words = [w.strip() for w in query.split() if len(w.strip()) > 2]
-
         search_query = {
             "$or": [
                 {"name": {"$regex": query, "$options": "i"}},
@@ -69,7 +62,7 @@ def search_local_restaurants(query: str) -> str:
             ]
         }
 
-        # Add individual word searches
+        words = [w.strip() for w in query.split() if len(w.strip()) > 2]
         if words:
             for word in words:
                 search_query["$or"].extend([
@@ -81,7 +74,6 @@ def search_local_restaurants(query: str) -> str:
         results = list(restaurants.find(search_query).limit(5))
 
         if not results:
-            # Fallback: return top rated restaurants
             results = list(restaurants.find(
                 {"average_rating": {"$gt": 0}}
             ).sort("average_rating", -1).limit(5))
@@ -94,7 +86,7 @@ def search_local_restaurants(query: str) -> str:
             count = r.get('review_count', 0)
             cuisine = r.get('cuisine_type', 'Various')
             city = r.get('city', '')
-            desc = r.get('description', '')[:100] if r.get('description') else ''
+            desc = (r.get('description', '') or '')[:100]
             results_text.append(
                 f"- {r['name']} ({cuisine}, {city}): {desc}. Rating: {avg} ({count} reviews)"
             )
@@ -112,19 +104,16 @@ async def chat_endpoint(data: ChatMessage, user: dict = Depends(get_current_user
     found_restaurants_store = []
 
     try:
-        # 1. Fetch user preferences from MongoDB
         db = get_mongo_db()
         user_id = user.get('id') or user.get('sub')
 
         prefs = None
         if user_id:
             try:
-                prefs = db['preferences'].find_one({
-                    "$or": [
-                        {"user_id": user_id},
-                        {"user_id": ObjectId(user_id)} if ObjectId.is_valid(user_id) else {"user_id": user_id}
-                    ]
-                })
+                query = {"user_id": user_id}
+                if ObjectId.is_valid(user_id):
+                    query = {"$or": [{"user_id": user_id}, {"user_id": ObjectId(user_id)}]}
+                prefs = db['preferences'].find_one(query)
                 if prefs:
                     prefs.pop('_id', None)
             except Exception:
@@ -132,16 +121,12 @@ async def chat_endpoint(data: ChatMessage, user: dict = Depends(get_current_user
 
         prefs_str = json.dumps(prefs) if prefs else "No specific preferences saved."
 
-        # 2. Initialize LLM
-        llm = AzureChatOpenAI(
-            azure_deployment="gpt-4o-mini",
-            openai_api_version="2024-02-01",
-            azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
-            api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+        llm = ChatGroq(
+            model="llama-3.1-8b-instant",
+            groq_api_key=os.getenv("GROQ_API_KEY"),
             temperature=0.7
         )
 
-        # 3. Tools
         tools = [search_local_restaurants]
         tavily_key = os.getenv("TAVILY_API_KEY")
         if tavily_key and "YourAPIKeyHere" not in tavily_key:
@@ -151,7 +136,6 @@ async def chat_endpoint(data: ChatMessage, user: dict = Depends(get_current_user
             except Exception as e:
                 print(f"Failed to initialize Tavily: {e}")
 
-        # 4. Build agent
         safe_prefs = prefs_str.replace("{", "{{").replace("}", "}}")
 
         prompt = ChatPromptTemplate.from_messages([
@@ -163,7 +147,6 @@ async def chat_endpoint(data: ChatMessage, user: dict = Depends(get_current_user
             STEP 1: ALWAYS call 'search_local_restaurants' first to find matching restaurants in our database.
 
             STEP 2: If Tavily is available, call 'tavily_search_results_json' to enrich your answer with real-time web context.
-            Search for things like current hours, recent reviews, special events for the restaurants you found.
 
             STEP 3: Combine both sources into a rich, helpful answer:
               - Lead with our database results (name, cuisine, rating, price)
@@ -172,7 +155,7 @@ async def chat_endpoint(data: ChatMessage, user: dict = Depends(get_current_user
               - Keep responses conversational and under 5 sentences.
             """),
             MessagesPlaceholder(variable_name="chat_history"),
-            ("user", "{input}"),
+            ("human", "{input}"),
             MessagesPlaceholder(variable_name="agent_scratchpad"),
         ])
 
@@ -184,7 +167,6 @@ async def chat_endpoint(data: ChatMessage, user: dict = Depends(get_current_user
             "chat_history": []
         })
 
-        # Deduplicate restaurants
         unique_restaurants = []
         seen_ids = set()
         for r in found_restaurants_store:
