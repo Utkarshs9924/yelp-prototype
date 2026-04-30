@@ -1,0 +1,103 @@
+name: Deploy to EKS
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_PERSONAL }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_PERSONAL }}
+          aws-region: us-east-2
+
+      - name: Login to Amazon ECR
+        run: |
+          aws ecr get-login-password --region us-east-2 | docker login --username AWS --password-stdin ${{ secrets.ECR_REGISTRY }}
+
+      - name: Build and push frontend
+        run: |
+          docker build -t yelp-frontend ./frontend
+          docker tag yelp-frontend:latest ${{ secrets.ECR_REGISTRY }}/yelp-frontend:latest
+          docker push ${{ secrets.ECR_REGISTRY }}/yelp-frontend:latest
+
+      - name: Build and push backend
+        run: |
+          docker build -t yelp-backend ./backend
+          docker tag yelp-backend:latest ${{ secrets.ECR_REGISTRY }}/yelp-backend:latest
+          docker push ${{ secrets.ECR_REGISTRY }}/yelp-backend:latest
+
+      - name: Build and push user-api
+        run: |
+          docker build -t yelp-user-api -f services/user-api/Dockerfile .
+          docker tag yelp-user-api:latest ${{ secrets.ECR_REGISTRY }}/yelp-user-api:latest
+          docker push ${{ secrets.ECR_REGISTRY }}/yelp-user-api:latest
+
+      - name: Build and push restaurant-api
+        run: |
+          docker build -t yelp-restaurant-api -f services/restaurant-api/Dockerfile .
+          docker tag yelp-restaurant-api:latest ${{ secrets.ECR_REGISTRY }}/yelp-restaurant-api:latest
+          docker push ${{ secrets.ECR_REGISTRY }}/yelp-restaurant-api:latest
+
+      - name: Build and push review-api
+        run: |
+          docker build -t yelp-review-api -f services/review-api/Dockerfile .
+          docker tag yelp-review-api:latest ${{ secrets.ECR_REGISTRY }}/yelp-review-api:latest
+          docker push ${{ secrets.ECR_REGISTRY }}/yelp-review-api:latest
+
+      - name: Build and push owner-api
+        run: |
+          docker build -t yelp-owner-api -f services/owner-api/Dockerfile .
+          docker tag yelp-owner-api:latest ${{ secrets.ECR_REGISTRY }}/yelp-owner-api:latest
+          docker push ${{ secrets.ECR_REGISTRY }}/yelp-owner-api:latest
+
+      - name: Build and push user-worker
+        run: |
+          docker build -t yelp-user-worker -f services/user-worker/Dockerfile .
+          docker tag yelp-user-worker:latest ${{ secrets.ECR_REGISTRY }}/yelp-user-worker:latest
+          docker push ${{ secrets.ECR_REGISTRY }}/yelp-user-worker:latest
+
+      - name: Build and push restaurant-worker
+        run: |
+          docker build -t yelp-restaurant-worker -f services/restaurant-worker/Dockerfile .
+          docker tag yelp-restaurant-worker:latest ${{ secrets.ECR_REGISTRY }}/yelp-restaurant-worker:latest
+          docker push ${{ secrets.ECR_REGISTRY }}/yelp-restaurant-worker:latest
+
+      - name: Build and push review-worker
+        run: |
+          docker build -t yelp-review-worker -f services/review-worker/Dockerfile .
+          docker tag yelp-review-worker:latest ${{ secrets.ECR_REGISTRY }}/yelp-review-worker:latest
+          docker push ${{ secrets.ECR_REGISTRY }}/yelp-review-worker:latest
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --region us-east-2 --name ${{ secrets.EKS_CLUSTER_NAME }}
+
+      - name: Restart all deployments on EKS
+        run: |
+          kubectl rollout restart deployment frontend
+          kubectl rollout restart deployment backend
+          kubectl rollout restart deployment user-api
+          kubectl rollout restart deployment restaurant-api
+          kubectl rollout restart deployment review-api
+          kubectl rollout restart deployment owner-api
+          kubectl rollout restart deployment user-worker
+          kubectl rollout restart deployment restaurant-worker
+          kubectl rollout restart deployment review-worker
+
+      - name: Verify deployments
+        run: |
+          kubectl rollout status deployment/frontend --timeout=120s
+          kubectl rollout status deployment/backend --timeout=120s
+          kubectl rollout status deployment/user-api --timeout=120s
+          kubectl rollout status deployment/restaurant-api --timeout=120s
+          kubectl rollout status deployment/review-api --timeout=120s
