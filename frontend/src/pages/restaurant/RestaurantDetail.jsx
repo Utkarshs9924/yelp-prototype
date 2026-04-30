@@ -125,7 +125,7 @@ export default function RestaurantDetail() {
     if (!restaurant_id) return;
     try {
       const { data } = await restaurantAPI.getMenu(restaurant_id);
-      setMenuItems(Array.isArray(data) ? data : []);
+      setMenuItems(Array.isArray(data) ? data : data?.menu_items ?? []);
     } catch {
       setMenuItems([]);
     }
