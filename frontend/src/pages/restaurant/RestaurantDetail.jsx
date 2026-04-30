@@ -300,7 +300,7 @@ export default function RestaurantDetail() {
           </div>
 
           {/* Upload Photo */}
-          {user && (
+          {user && (user.role === 'admin' || user.role === 'owner') && (
             <div className="px-6 py-3 bg-gray-50 border-t border-gray-100 flex items-center gap-3">
               <input
                 type="file"
